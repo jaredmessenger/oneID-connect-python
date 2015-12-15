@@ -1,13 +1,13 @@
-.. oneID-py documentation master file, created by
+.. oneID-connect documentation master file, created by
    sphinx-quickstart on Mon Nov  2 17:57:31 2015.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-oneID-py
-========
+oneID-connect
+=============
 ``oneID-connect`` is a Python authentication framework for the Internet of Things (IoT), servers and end-users.
 By sending messages with digital signatures, you can authenticate the origin of the message and
-ensure the message hasn't been tampered with. ``oneID-py`` makes it simple for projects that need to
+ensure the message hasn't been tampered with. ``oneID-connect`` makes it simple for projects that need to
 send authenticated messages and verify the authentication of messages.
 
 oneID-py can be installed on IoT devices and servers that support python 2.7.
