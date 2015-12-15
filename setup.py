@@ -17,6 +17,7 @@ with open(os.path.join(base_dir, "README.rst")) as f:
 setup(
     name=about['__title__'],
     version=about['__version__'],
+    description=about['__summary__'],
     long_description=long_description,
     url=about['__uri__'],
     author=about['__author__'],
