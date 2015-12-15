@@ -1,5 +1,3 @@
-.. installation::
-
 Installation for Intel Edison
 =============================
 First update to the latest `Yocto firmware update`_

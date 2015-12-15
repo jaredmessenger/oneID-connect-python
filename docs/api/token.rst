@@ -1,5 +1,5 @@
-Token Object
-============
+Token
+=====
 .. module:: oneid.keychain
 
 ``Token`` is the combination of a private key and matching public key.
