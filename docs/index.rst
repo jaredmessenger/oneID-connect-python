@@ -13,17 +13,7 @@ send authenticated messages and verify the authentication of messages.
 oneID-py can be installed on IoT devices and servers that support python 2.7.
 oneID-py depends on two external libraries: the cryptography.io python package and openSSL.
 
-.. toctree::
-   :maxdepth: 2
-   :hidden:
 
-   installation/device/intel-edison
-   installation/server/ubuntu
-   installation/server/osx
-   api/token
-   tutorials/hello-world
-   tutorials/telemetry-data
-   tutorials/firmware-update
 
 Introduction
 ------------
@@ -35,22 +25,28 @@ platform that securely connects users to their IoT devices, while enabling produ
 to those same IoT devices. We do this using state of the art `Elliptical Curve cryptography`_.
 
 Installation
-------------
-- :doc:`installation/device/intel-edison`
-- :doc:`installation/server/ubuntu`
-- :doc:`installation/server/osx`
+~~~~~~~~~~~~
 
+.. toctree::
+   :maxdepth: 3
 
-API
-----
-- :doc:`api/token`
-
+   installation/index
 
 Tutorials
----------
-- :doc:`tutorials/hello-world`
-- :doc:`tutorials/telemetry-data`
-- :doc:`tutorials/firmware-update`
+~~~~~~~~~
+
+.. toctree::
+   :maxdepth: 2
+
+   tutorials/index
+
+API
+~~~
+
+.. toctree::
+   :maxdepth: 2
+
+   api/index
 
 
 Indices and tables
