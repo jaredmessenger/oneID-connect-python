@@ -1,20 +1,27 @@
+import os
+
 from setuptools import setup, find_packages
 from codecs import open
-from os import path
 
-current_dir = path.abspath(path.dirname(__file__))
+base_dir = os.path.dirname(__file__)
+src_dir = os.path.join(base_dir, "src")
 
-with open(path.join(current_dir, 'DESCRIPTION.rst'), encoding='utf-8') as f:
+
+about = {}
+with open(os.path.join(src_dir, "oneid", "__about__.py")) as f:
+    exec(f.read(), about)
+
+with open(os.path.join(base_dir, "README.rst")) as f:
     long_description = f.read()
 
 setup(
-    name='oneid-connect',
-    version='0.0.1',
+    name=about['__title__'],
+    version=about['__version__'],
     long_description=long_description,
-    url='https://github.com',
-    author='oneID',
-    author_email='support@oneID.com',
-    license='MIT',
+    url=about['__uri__'],
+    author=about['__author__'],
+    author_email=about['__email__'],
+    license=about['__license__'],
     classifiers=[
         'Development Status :: 4 - Beta',
         "Intended Audience :: Developers",
