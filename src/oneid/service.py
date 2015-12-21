@@ -63,6 +63,26 @@ def encrypt_attr_value(attr_value, aes_key):
     return {'cipher': 'aes', 'mode': 'gcm', 'ts': 128, 'iv': iv_b64, 'ct': encr_value_b64}
 
 
+def decrypt_attr_value(attr_ct, aes_key):
+    """
+    Convenience method to decrypt attribute properties
+
+    :param attr_ct: Dictionary with base64 encoded cipher text and base 64 encoded iv
+    :param aes_key: symmetric key to decrypt attribute value with
+    :return: Dictionary with base64 encoded cipher text and base 64 encoded iv
+    """
+    if not isinstance(attr_ct, dict) or attr_ct.get('cipher', 'aes') != 'aes' or attr_ct.get('mode', 'gcm') != 'gcm':
+        raise ValueError('invalid encrypted attribute')
+    iv = base64.b64decode(attr_ct['iv'])
+    tag_ct = base64.b64decode(attr_ct['ct'])
+    ts = attr_ct.get('ts', 64) // 8
+    tag = tag_ct[-ts:]
+    ct = tag_ct[:-ts]
+    cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv, tag, min_tag_length=8), backend=default_backend())
+    decryptor = cipher_alg.decryptor()
+    return decryptor.update(ct) + decryptor.finalize()
+
+
 def make_jwt(claims, authorized_token):
     """
     Convert claims into JWT
