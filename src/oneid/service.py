@@ -8,6 +8,8 @@ import json
 import base64
 import struct
 import urllib2
+import re
+import time
 import logging
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -26,6 +28,17 @@ AUTHENTICATION_ENDPOINT = 'http://developer-portal.oneid.com/api/{project}/authe
 
 
 ONEID_TYPES = utils.enum(DEVICE=0, SERVER=1, USER=2)
+
+B64_URLSAFE_RE = '[0-9a-zA-Z-_]+'
+JWT_RE = r'^{b64}\.{b64}\.{b64}$'.format(b64=B64_URLSAFE_RE)
+
+REQUIRED_JWT_HEADER_ELEMENTS = {
+    'typ': 'JWT',
+    'alg': 'ES256',
+}
+TOKEN_EXPIRATION_TIME_SEC = (1*60*60)  # one hour
+TOKEN_NOT_BEFORE_LEEWAY_SEC = (2*60)   # two minutes
+TOKEN_EXPIRATION_LEEWAY_SEC = (0)      # not really needed
 
 
 def create_secret_key(output=None):
@@ -105,6 +118,87 @@ def make_jwt(claims, authorized_token):
     signature = authorized_token.sign(payload)
 
     return '{payload}.{sig}'.format(payload=payload, sig=signature)
+
+
+def verify_jwt(jwt, verification_token=None):  # TODO: require verification_token
+    """
+    Convert a JWT back to it's claims, if validated by the token
+
+    :param jwt: JWT to verify and convert
+    :type jwt: str
+    :param verification_token: :py:class:`Token` to verify the JWT
+    :type param: :py:class:`Token`
+    """
+    if not re.match(JWT_RE, jwt):
+        logger.debug('Given JWT doesnt match pattern: %s', jwt)
+        return False
+
+    try:
+        header, payload, signature = [utils.base64url_decode(p) for p in jwt.split('.')]
+    except:
+        logger.debug('invalid message, error splitting/decoding: %s', jwt, exc_info=True)
+        return False
+
+    if not _verify_jwt_header(header.decode('utf-8')):
+        return False
+
+    message = _verify_jwt_claims(payload)
+
+    if message is None:
+        logger.debug('no message: %s', message)
+        return False
+
+    if verification_token and not verification_token.verify(*(jwt.split('.')[:2]), signature=signature):
+        logger.debug('invalid signature, header=%s, message=%s', header, message)
+        return False
+
+    return message
+
+
+def _verify_jwt_header(header):
+    try:
+        header = json.loads(header)
+    except ValueError:
+        logger.debug('invalid header, not valid json: %s', header)
+        return False
+    except Exception:  # pragma: no cover
+        logger.debug('unknown error verifying header: %s', header, exc_info=True)
+        return False
+
+    for key, value in REQUIRED_JWT_HEADER_ELEMENTS.items():
+        if header.pop(key, None) != value:
+            logger.debug('invalid header, missing or incorrect %s: %s', key, header)
+            return False
+
+    if len(header) > 0:
+        logger.debug('invalid header, extra elements: %s', header)
+        return False
+
+    return True
+
+
+def _verify_jwt_claims(payload):
+    try:
+        message = json.loads(payload)
+        now = int(time.time())
+
+        if 'exp' in message and (int(message['exp']) + TOKEN_EXPIRATION_LEEWAY_SEC) < now:
+            logger.warning('Expired token, exp=%s, now=%s', message['exp'], now)
+            return None
+
+        if 'nbf' in message and (int(message['nbf']) - TOKEN_NOT_BEFORE_LEEWAY_SEC) > now:
+            logger.warning('Early token, nbf=%s, now=%s', message['nbf'], now)
+            return None
+
+        if 'jti' in message and not utils.verify_and_burn_nonce(message['jti']):
+            logger.warning('Invalid nonce: %s', message['jti'])
+            return None
+
+        return message
+
+    except:
+        logger.debug('unknown error verifying payload: %s', payload, exc_info=True)
+        return None
 
 
 def request_oneid_authentication(jwt, project_id):
