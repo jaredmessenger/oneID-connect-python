@@ -1,6 +1,9 @@
 import random
 import time
 import base64
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def enum(**items):
@@ -57,4 +60,3 @@ def make_nonce():
 
     return '001{time_str}{random_str}'.format(time_str=time_component,
                                               random_str=random_str)
-

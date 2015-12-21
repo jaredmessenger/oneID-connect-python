@@ -8,6 +8,7 @@ import json
 import base64
 import struct
 import urllib2
+import logging
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -17,6 +18,9 @@ from cryptography.hazmat.primitives.serialization \
 
 from keychain import Token
 import utils
+
+logger = logging.getLogger(__name__)
+
 
 AUTHENTICATION_ENDPOINT = 'http://developer-portal.oneid.com/api/{project}/authenticate'
 
