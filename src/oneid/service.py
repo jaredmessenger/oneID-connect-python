@@ -148,7 +148,7 @@ def verify_jwt(jwt, verification_token=None):  # TODO: require verification_toke
         logger.debug('no message: %s', message)
         return False
 
-    if verification_token and not verification_token.verify(*(jwt.split('.')[:2]), signature=signature):
+    if verification_token and not verification_token.verify(*(str(jwt).rsplit('.', 1))):
         logger.debug('invalid signature, header=%s, message=%s', header, message)
         return False
 
