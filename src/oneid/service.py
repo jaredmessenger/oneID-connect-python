@@ -59,6 +59,10 @@ def create_secret_key(output=None):
     return Token.from_secret_pem(key_bytes=secret_key_bytes)
 
 
+def create_aes_key():
+    return os.urandom(32)
+
+
 def encrypt_attr_value(attr_value, aes_key):
     """
     Convenience method to encrypt attribute properties
