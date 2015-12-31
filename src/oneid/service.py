@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+"""
+Provides useful functions for interacting with the oneID API, including creation of
+keys, JWTs, etc.
+"""
+
 import os
 import math
 import hmac
@@ -60,6 +65,11 @@ def create_secret_key(output=None):
 
 
 def create_aes_key():
+    """
+    Create an AES256 key for symmetric encryption
+
+    :return: Encryption key bytes
+    """
     return os.urandom(32)
 
 
@@ -106,7 +116,7 @@ def make_jwt(claims, authorized_token):
 
     :type claims: Dictionary that will be converted to json
     :param claims: payload data
-    :param authorized_token: Token to sign the request
+    :param authorized_token: :py:class:`~oneid.keychain.Token` to sign the request
     :return: JWT
     """
     alg = {'alg': 'ES256',
@@ -126,12 +136,12 @@ def make_jwt(claims, authorized_token):
 
 def verify_jwt(jwt, verification_token=None):  # TODO: require verification_token
     """
-    Convert a JWT back to it's claims, if validated by the token
+    Convert a JWT back to it's claims, if validated by the :py:class:`~oneid.keychain.Token`
 
     :param jwt: JWT to verify and convert
     :type jwt: str
-    :param verification_token: :py:class:`Token` to verify the JWT
-    :type param: :py:class:`Token`
+    :param verification_token: :py:class:`~oneid.keychain.Token` to verify the JWT
+    :type param: :py:class:`~oneid.keychain.Token`
     """
     if not re.match(JWT_RE, jwt):
         logger.debug('Given JWT doesnt match pattern: %s', jwt)
@@ -211,7 +221,9 @@ def request_oneid_authentication(jwt, project_id):
     for a two-factor authenticated message
 
     :param jwt: Standard jwt with a header, claims and signature
-        *MUST HAVE SAME PAYLOAD THAT WILL BE SENT TO IoT DEVICE!
+
+        *MUST HAVE SAME PAYLOAD THAT WILL BE SENT TO IoT DEVICE!*
+
     :param project_id: project id
     :return: JSON(payload, oneID Signature)
     :raises: urllib2.HTTPError

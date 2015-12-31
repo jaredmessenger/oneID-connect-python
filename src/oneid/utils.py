@@ -1,3 +1,7 @@
+"""
+Helpful utility functions
+"""
+
 import random
 import time
 import base64
@@ -45,6 +49,7 @@ def base64url_decode(msg):
 def make_nonce():
     """
     Create a nonce with timestamp included
+
     :return: nonce
     """
     time_format = '%Y-%m-%dT%H:%M:%SZ'
@@ -66,6 +71,17 @@ def make_nonce():
 
 
 def verify_and_burn_nonce(nonce):
+    """
+    Ensure that the nonce is correct, less than one hour old,
+    and not more than two minutes in the future
+
+    Callers should also store used nonces and reject messages
+    with previously-used ones.
+
+    :param nonce: Nonce as created with :func:`~oneid.utils.make_nonce`
+    :return: True only if nonce meets validation criteria
+    :rtype: bool
+    """
     ret = re.match(r'^001[2-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])'
                    r'T([01][0-9]|2[0-3])(:[0-5][0-9]){2}Z[A-Za-z0-9]{6}$', nonce)
     if ret:
