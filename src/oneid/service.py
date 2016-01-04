@@ -12,10 +12,14 @@ import hashlib
 import json
 import base64
 import struct
-import urllib2
 import re
 import time
 import logging
+
+try:
+    from urllib.request import urlopen, Request
+except ImportError:
+    from urllib2 import urlopen, Request
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -23,8 +27,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PrivateFormat, NoEncryption
 
-from keychain import Token
-import utils
+from .keychain import Token
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -226,12 +230,12 @@ def request_oneid_authentication(jwt, project_id):
 
     :param project_id: project id
     :return: JSON(payload, oneID Signature)
-    :raises: urllib2.HTTPError
+    :raises: HTTPError
     """
-    http_request = urllib2.Request(AUTHENTICATION_ENDPOINT.format(project=project_id))
+    http_request = Request(AUTHENTICATION_ENDPOINT.format(project=project_id))
     http_request.add_header('Content-Type', 'application/jwt')
 
-    return urllib2.urlopen(http_request, jwt)
+    return urlopen(http_request, jwt)
 
 
 def kdf(derivation_key, label, context='', key_size=128):
