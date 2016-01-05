@@ -1,6 +1,16 @@
+"""
+Helpful utility functions
+"""
+
 import random
 import time
 import base64
+import re
+from datetime import datetime, timedelta
+from dateutil import parser, tz
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def enum(**items):
@@ -33,12 +43,13 @@ def base64url_decode(msg):
     if pad > 0:
         msg += '=' * (4 - pad)
 
-    return base64.urlsafe_b64decode(msg)
+    return base64.urlsafe_b64decode(str(msg))
 
 
 def make_nonce():
     """
     Create a nonce with timestamp included
+
     :return: nonce
     """
     time_format = '%Y-%m-%dT%H:%M:%SZ'
@@ -58,3 +69,24 @@ def make_nonce():
     return '001{time_str}{random_str}'.format(time_str=time_component,
                                               random_str=random_str)
 
+
+def verify_and_burn_nonce(nonce):
+    """
+    Ensure that the nonce is correct, less than one hour old,
+    and not more than two minutes in the future
+
+    Callers should also store used nonces and reject messages
+    with previously-used ones.
+
+    :param nonce: Nonce as created with :func:`~oneid.utils.make_nonce`
+    :return: True only if nonce meets validation criteria
+    :rtype: bool
+    """
+    ret = re.match(r'^001[2-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])'
+                   r'T([01][0-9]|2[0-3])(:[0-5][0-9]){2}Z[A-Za-z0-9]{6}$', nonce)
+    if ret:
+        date = parser.parse(nonce[3:-6])
+        now = datetime.utcnow().replace(tzinfo=tz.tzutc())
+        ret = date < (now + timedelta(minutes=2)) and date > (now + timedelta(hours=-1))
+
+    return ret  # TODO: keep a record (at least for the last hour) of burned nonces

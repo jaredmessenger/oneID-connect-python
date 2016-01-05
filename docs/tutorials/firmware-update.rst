@@ -69,19 +69,25 @@ In python, we're just going to hardcode the path to these keys for quick access.
     import base64
 
     from oneid.token import Token
+    from oneid.util import make_nonce
 
     # Secret keys we downloaded from oneID Developer Portal
     server_secret_key_path = '/home/www/server_key.pem'
     project_secret_key_path = '/home/www/project_key.pem'
+
+    nonce = make_nonce()
+    now = int(time.time())
 
     server_id = 'unique_server_id'
 
     header = {'alg': 'ES256', 'typ': 'JWT'}
     message = {'url': 'https://static.oneid.com/firmware/abc',
                'checksum': 'abcd',
-               'server': server_name,
-               'nonce', 'efgg',
-               'timestamp': int(time.time())}
+               'iss': server_id,
+               'jti', nonce,
+               'nbf': now,
+               'exp': now + 60,
+              }
 
     header_json = json.dumps(header)
     message_json = json.dumps(message)
@@ -155,6 +161,6 @@ IoT Device
 First thing we need to do on the IoT device is copy over the oneID public key
 from the `oneID developer portal`_.
 
-.. _developer account on oneID: https://developer.oneid.com
-.. _oneID developer portal: https://developer.oneid.com
+.. _developer account on oneID: https://developer.oneid.com/console
+.. _oneID developer portal: https://developer.oneid.com/console
 .. _Redis Quick Start: http://redis.io/topics/quickstart

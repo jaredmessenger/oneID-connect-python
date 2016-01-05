@@ -38,23 +38,32 @@ we're just going to quickly implement a single JWT message.
     import base64
 
     from oneid.token import Token
+    from oneid.util import make_nonce
+
+    nonce = make_nonce()
+    now = int(time.time())
 
     # The message we want to send to the server
     message = "Current temperature outside is 65"
 
     # Device name or device UUID is so the server can associate
     # information to a specific device
+    device_id = 'unique_device_id'
     device_name = 'my IoT device'
 
     # Specify the algorithm we're using
-    jwt_header = {'alg' : 'ES256', 'typ': 'JWT'}
+    jwt_header = {'alg': 'ES256', 'typ':'JWT'}
 
-    # For the claims, we can specify the message, a nonce and a timestamp.
-    # The nonce and timestamp can be used to prevent replay attacks.
+    # For the claims, we can specify the message, a nonce in `jti`,
+    # an expiration time in `exp` and a "not before" time in `nbf`.
+    # The nonce and timestamps can be used to prevent replay attacks.
     jwt_claims = {'message': message,
                   'device': device_name,
-                  'nonce': 'abc',
-                  'timestamp': int(time.time())}
+                  'iss': device_id,
+                  'jti', nonce,
+                  'nbf': now,
+                  'exp': now + 60,
+                 }
 
     # Serialize the header and claims as json
     header_json = json.dumps(jwt_header)
@@ -86,7 +95,7 @@ This is required for the sever to verify messages it receives from the IoT devic
     # We're just going to print so we can copy and paste
     print(device_name)
 
-    print(device_token.public_key_b64)
+    print(base64.b64encode(device_token.public_key_der))
 
 Server
 ------
@@ -98,16 +107,10 @@ that can receive an HTTP POST request.
 
 .. code-block:: python
 
-    import json
-    import time
-    import base64
-
     from django.http import HttpResponse, HttpResponseBadRequest
 
     from oneid.token import Token
-
-    # Set an expiration to ignore messages older than X in seconds
-    time_stamp_expiration = 30.0
+    from oneid.service import verify_jwt
 
     # device_lookup is the device_name and it's matching public key that was printed
     # to the console in the last step, Production setup should store this in a database.
@@ -120,25 +123,9 @@ that can receive an HTTP POST request.
         if request.method != 'POST':
             return HttpResponseBadRequest('Error')
 
-        # deserialize JWT
-        try:
-            header_b64, claims_b64, signature = request.body.split('.')
-        except ValueError:
-            return HttpResponseBadRequest('Error')
+        claims = verify_jwt(request.body)
 
-        header_json = base64.b64decode(header_b64)
-        claims_json = base64.b64decode(claims_b64)
-
-        header = json.loads(header_json)
-        claims = json.loads(claims_json)
-
-        # Make sure the JWT has specified the correct algorithm
-        if header.get('alg') != 'ES256':
-            return HttpResponseBadRequest('Error')
-
-        # Let's also make sure the timestamp delta is within the expiration period
-        timestamp_delta = abs(claims.get('timestamp', 0) - time.time())
-        if timestamp_delta > time_stamp_expiration:
+        if not claims:
             return HttpResponseBadRequest('Error')
 
         # given the device name, lookup it's matching public key
@@ -149,16 +136,10 @@ that can receive an HTTP POST request.
             return HttpResponseBadRequest('Error')
 
         # Load the public key into oneID Token
-        device_token = Token.token_from_validate_key(device_public_key)
+        device_token = Token.from_public_der(device_public_key)
 
-        # re-create the payload so the signature can be verified
-        payload = '{header}.{claims}'.format(header=header_b64,
-                                             claims=claims_b64)
-
-        try:
-            # verify the message hasn't been tampered with and the senders identity
-            device_token.verify(payload, signature)
-        except Exception:
+        # now re-verify with the Token
+        if not verify_jwt(request.body, device_token)
             return HttpResponseBadRequest('Error')
 
         # The message and sender have been verified!

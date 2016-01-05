@@ -35,11 +35,11 @@ a message, the receiver needs the senders public key.
         :param der_key: DER formatted secret key.
         :return: :class:`~oneid.keychain.Token`
 
-    .. py:classmethod:: from_public_key(public_key)
+    .. py:classmethod:: from_public_der(public_der_key)
 
         Creates a :class:`~oneid.keychain.Token` instance from a public key.
 
-        :param public_key: :class:`~base64` URL encoded public key.
+        :param public_key: :class:`~base64`-encoded (non-URL-safe) der formatted public key.
 
         :return: An instance of :class:`~oneid.keychain.Token` that can verify messages
             signed by the matching private key.
@@ -61,8 +61,3 @@ a message, the receiver needs the senders public key.
         :param signature: Base64 digital signature from the sender
         :raises cryptography.exceptions.InvalidSignature: This is raises if the digital
             signature does NOT match the message digest.
-
-
-
-
-
