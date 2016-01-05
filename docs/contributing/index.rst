@@ -11,7 +11,7 @@ collaboration tools exclusively for managing development.
 
 Getting Started
 ---------------
-Working on `oneID-connect` requires additional packages, `nose2`_ and `Sphinx`_.
+Working on ``oneID-connect`` requires additional packages, `nose2`_ and `Sphinx`_.
 
 .. code-block:: console
 
@@ -78,7 +78,7 @@ Contributing Changes
 
 .. warning::
  Don't submit unrelated changes in the same branch/pull request! We would hate to see an amazing
- pull request get rejected because it contains unrelated code.
+ pull request get rejected because it contains a bug in unrelated code.
 
 * All new functions and classes **MUST** be documented and accompanied with unit tests.
 * Our coding style follows `PEP 8`_.
