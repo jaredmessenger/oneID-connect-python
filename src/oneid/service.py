@@ -55,7 +55,7 @@ def create_secret_key(output=None):
     Create a secret key and save it to a secure location
 
     :param output: Path to save the secret key
-    :return: Secret key bytes.
+    :return: oneid.keychain.Token
     """
     secret_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
     secret_key_bytes = secret_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
