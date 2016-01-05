@@ -42,5 +42,5 @@ setup(
                            exclude=['contrib', 'docs', 'tests*',
                                     'venv', 'example*', '*egg-info',
                                     '.gitignore']),
-    install_requires=['cryptography'],
+    install_requires=['cryptography>=1.1.2'],
 )
