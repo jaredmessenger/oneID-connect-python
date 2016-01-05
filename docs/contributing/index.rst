@@ -97,6 +97,11 @@ Contributing Changes
 
 
 * Patches should be small to facilitate easier review.
+* New features should branch off of ``master`` and once finished, submit a pull request into ``develop``.
+* ``develop`` branch is used to gather all new features for an upcoming release.
+* Bug fixes should be based off the branch named after the oldest supported release the bug affects.
+ - If a feature was introduced in 1.1 and the latest release is 1.3, and a bug is found in that feature.
+   Make your branch based on 1.1. The maintainer will the forward-port it to 1.3 and master.
 * You **MUST** have legal permission to distribute any code you contribute to ``oneID-connect``.
 * Class names which contains acronyms or initials should always be capitalized. i.e. ``AESEncrypt`` not ``AesEncrypt``.
 

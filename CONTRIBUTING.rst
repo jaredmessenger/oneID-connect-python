@@ -9,14 +9,6 @@ Examples of contributions include:
 * Documentation improvements
 * Bug reports and patch reviews
 
-Extensive contribution guidelines are available in the repository at docs/contributing/, or online at:
+Extensive contribution guidelines are available in the repository at ``docs/contributing/``, or online at:
 
-http://oneid-connect.readthedocs.org/en/latest/contributing/
-
-Security issues
----------------
-
-To report a security issue, please follow the special `security reporting
-guidelines`_, do not report them in the public issue tracker.
-
-.. _`security reporting guidelines`: https://www.oneid.com
+http://oneid-connect.readthedocs.org/en/latest/contributing/index.html
