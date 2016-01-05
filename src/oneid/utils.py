@@ -29,6 +29,13 @@ def base64url_encode(msg):
 
 
 def base64url_decode(msg):
+    """
+    JWT spec doesn't allow padding characters. base64url_encode removes them,
+    base64url_decode, adds them back in before trying to base64 decode the message
+
+    :param msg: URL safe base64 message
+    :return: plain text message
+    """
     pad = len(msg) % 4
     if pad > 0:
         msg += '=' * (4 - pad)
