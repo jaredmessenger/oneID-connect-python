@@ -1,3 +1,6 @@
+.. image:: https://circleci.com/gh/OneID/oneID-connect-python.svg?style=svg
+    :target: https://circleci.com/gh/OneID/oneID-connect-python
+
 oneID Connect
 =============
 oneID-connect is a Python authentication framework for the Internet of Things (IoT),
@@ -9,4 +12,3 @@ the authentication of messages.
 For more information, please visit the docs.
 `<http://oneid-connect.readthedocs.org/en/latest/>`_
 
-    

@@ -12,7 +12,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey, \
     EllipticCurvePrivateKey, EllipticCurvePublicNumbers, SECP256R1
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_der_private_key
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, \
+    load_der_private_key, load_der_public_key
 
 from cryptography.hazmat.primitives.asymmetric.utils \
     import decode_dss_signature, encode_dss_signature
@@ -20,7 +21,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PublicFormat, PrivateFormat, NoEncryption
 
-import utils
+from . import utils
 
 
 class Token(object):
@@ -104,11 +105,12 @@ class Token(object):
     @classmethod
     def from_public_key(cls, public_key):
         """
-        Given a URL Safe public key, convert it into a token to validate signatures
-        :param public_key: Base64 URL encoded public key
+        Given a base64-encoded public key, convert it into a token to
+        validate signatures
+        :param public_key: Base64-encoded (non-URL-safe) public key
         :return: Token()
         """
-        bin_sig = utils.base64url_decode(public_key)
+        bin_sig = base64.b64decode(public_key)
         coordinate_len = len(bin_sig)/2
 
         bin_x = bin_sig[:coordinate_len]
@@ -119,6 +121,22 @@ class Token(object):
 
         new_token = cls()
         new_token.load_validate(x, y)
+
+        return new_token
+
+    @classmethod
+    def from_public_der(cls, public_key):
+        """
+        Given a base64-encoded DER-format public key, convert it into a token to
+        validate signatures
+        :param public_key: Base64-encoded (non-URL-safe) public key
+        :return: Token()
+        """
+        bin_sig = base64.b64decode(public_key)
+        pub = load_der_public_key(bin_sig, default_backend())
+
+        new_token = cls()
+        new_token._public_key = pub
 
         return new_token
 
@@ -143,7 +161,7 @@ class Token(object):
         signer = self.public_key.verifier(sig,
                                           ec.ECDSA(hashes.SHA256()))
         signer.update(payload)
-        signer.verify()
+        return signer.verify()
 
     def sign(self, payload):
         """
