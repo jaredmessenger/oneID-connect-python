@@ -56,11 +56,12 @@ Let's create a new project.
 
    $ oneid-cli create-project --name "my epic project"
 
-You will be given a two project keys. The first is a **SECRET** key.
+You will be given two project keys. The first is a **SECRET** key.
 
 .. danger::
   SAVE THE PROJECT SECRET KEY IN A SAFE PLACE.
-  IF YOU LOSE THIS KEY, YOU WILL LOSE YOUR ABILITY TO SEND AUTHENTICATED MESSAGES TO YOU DEVICES.
+  If you lose this key, you will lose your ability to send authenticated messages
+  to your devices.
 
 The second project key will be given to all your edge devices and used
 to verify messages sent from a server.
@@ -134,10 +135,8 @@ In python, we're just going to hardcode the path to these keys for quick access.
     payload = '{header}.{message}'.format(header=base64.b64encode(header_json),
                                           message=base64.b64encode(message_json))
 
-    # using the server's private key that was downloaded
-    # from the oneID Developer Portal, sign the payload
-    server_token = Token()
-    server_token.load_secret_pem(server_secret_key_path)
+    # Digitally sign using the server's secret key
+    server_token = keychain.Token.load_secret_pem(path=server_secret_key_path)
     server_signature = server_token.sign(payload)
 
     server_jwt = '{payload}.{signature}'.format(payload=payload,
@@ -147,12 +146,12 @@ In python, we're just going to hardcode the path to these keys for quick access.
         # send server_jwt to oneID to receive oneID's signature
         payload, oneid_signature = oneid.authenticate(server_jwt)
     except Exception as e:
+        # If oneID doesn't authenticate this server, raise an Exception.
         print('Failed to receive oneID\'s authentication')
         print('Error %e' % e.description)
         raise ValueError(e.description)
 
-    # sign the payload with the project token
-    project_token = Token()
+    # Digitally sign the payload with the project token
     project_token.load_secret_pem(project_secret_key_path)
     project_signature = project_token.sign(payload)
 
@@ -197,7 +196,7 @@ With redis now installed, let's create a publisher and publish the ``authenticat
 
 IoT Device
 ~~~~~~~~~~
-First let's provision our IoT device.
+Just like we did with the server we need to start with provisioning our IoT device.
 
 .. code-block:: console
 
@@ -254,7 +253,7 @@ by verifying the digital signatures.
    oneID_token.verify(payload.get('message'), payload.get('oneid_sig'))
    project_token.verify(payload.get('message'), payload.get('project_sig'))
 
-if either of the tokens fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
+If either of the tokens fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
 
 
 .. _oneID developer account: https://developer.oneid.com/console
