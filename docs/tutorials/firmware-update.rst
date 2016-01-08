@@ -8,15 +8,21 @@ oneID's two-factor authentication service enables you to manage all your servers
 and IoT devices. If a server or IoT device has been compromised or taken out of
 commission, you can easily revoke it's signing permissions.
 
-Before we begin, you need to create a `developer account on oneID`_
+Before we begin, you will need to ``oneID-cli`` and a `oneID developer account`_.
+
+.. code-block:: console
+
+   $ pip isntall oneid-cli
+
+
 
 Intro to oneID's Two-Factor Authentication
 ------------------------------------------
 Two-factor means that there will be two signatures for each message.
 **BOTH** signatures must be verified before reading the message.
 Since there are two signatures that need to be verified on the IoT device,
-the IoT device will need to store two public keys. oneID will
-provide you with both public keys for the IoT device.
+the IoT device will need to store two tokens that will be used for message verification.
+oneID will provide you with both of these tokens for the IoT device.
 
 Steps:
 ~~~~~~
@@ -28,37 +34,71 @@ Steps:
 #. IoT device verifies **BOTH** signatures.
 
 
-oneID Developer Portal
-----------------------
-In the `oneID developer portal`_, create a new project, "My Project". It will
-prompt you to download a project key, ``my_project.pem``.
 
-.. rubric:: SAVE THE PROJECT KEY IN A SAFE PLACE.
+Setup
+-----
+First we need to configure your terminal.
 
-The project key can't be re-created, it's important to not lose this key. This project key will
-need to be shared with all of your servers.
+.. code-block:: console
 
-The next step in this tutorial is going to be creating a server,
-so let's add a server while we're here and name it "My Server".
-It's going to prompt you to download the secret ``my_server.pem`` key.
+   oneid-cli configure
 
-There is also another key you will need from the `oneID developer portal`_, the
-oneID public key. This key will be shared with all of your IoT devices.
-It's used to verify oneID's two-factor authentication.
+This will prompt you for your ``ACCESS_KEY``, ``ACCESS_SECRET``, and ``ONEID_KEY``.
+You can find all these in your `oneID developer console`_
+
+
+Creating a Project
+~~~~~~~~~~~~~~~~~~
+All users, servers and edge devices need to be associated with a project.
+Let's create a new project.
+
+.. code-block:: console
+
+   $ oneid-cli create-project --name "my epic project"
+
+You will be given two project keys. The first is a **SECRET** key.
+
+.. danger::
+  SAVE THE PROJECT SECRET KEY IN A SAFE PLACE.
+  If you lose this key, you will lose your ability to send authenticated messages
+  to your devices.
+
+The second project key will be given to all your edge devices and used
+to verify messages sent from a server.
+
+.. note::
+
+  The project public key can easily be re-generated as long as you
+  have the corresponding secret the key
+
 
 Server
-------
+~~~~~~
 The firmware update message we will send to the IoT devices will be very simple.
 The message will be a url to the CDN where the firmware update is hosted
 and a checksum the IoT device will use to verify the download.
 
-Before we can sign any messages, we need to copy over the secret keys
-we downloaded from the oneID developer portal in the previous step.
+Before we can sign any messages, we need to give the server an identity
+oneID can verify.
 
 .. code-block:: console
 
-    $ scp /Users/me/downloads/server_key.pem ubuntu@10.1.2.3:/home/www/server_key.pem
-    $ scp /Users/me/downloads/project_key.pem ubuntu@10.1.2.3:/home/www/project_key.pem
+   $ oneid-cli provision --name "IoT server" --type server
+
+This will generate a new **SECRET** ``.pem`` file.
+
+.. danger::
+
+   PLEASE STORE SECRET FILES IN A SAFE PLACE. Never post them in a public forum
+   or give them to anyone.
+
+If you created the server secret key on your personal computer, we need to copy it over to the
+server along with the project key that was generated when you first created the project.
+
+.. code-block:: console
+
+    $ scp /Users/me/secret/server_secret.pem ubuntu@10.1.2.3:/home/www/server_secret.pem
+    $ scp /Users/me/secret/project_secret.pem ubuntu@10.1.2.3:/home/www/project_secret.pem
 
 In python, we're just going to hardcode the path to these keys for quick access.
 
@@ -95,10 +135,8 @@ In python, we're just going to hardcode the path to these keys for quick access.
     payload = '{header}.{message}'.format(header=base64.b64encode(header_json),
                                           message=base64.b64encode(message_json))
 
-    # using the server's private key that was downloaded
-    # from the oneID Developer Portal, sign the payload
-    server_token = Token()
-    server_token.load_secret_pem(server_secret_key_path)
+    # Digitally sign using the server's secret key
+    server_token = keychain.Token.load_secret_pem(path=server_secret_key_path)
     server_signature = server_token.sign(payload)
 
     server_jwt = '{payload}.{signature}'.format(payload=payload,
@@ -108,12 +146,12 @@ In python, we're just going to hardcode the path to these keys for quick access.
         # send server_jwt to oneID to receive oneID's signature
         payload, oneid_signature = oneid.authenticate(server_jwt)
     except Exception as e:
+        # If oneID doesn't authenticate this server, raise an Exception.
         print('Failed to receive oneID\'s authentication')
         print('Error %e' % e.description)
         raise ValueError(e.description)
 
-    # sign the payload with the project token
-    project_token = Token()
+    # Digitally sign the payload with the project token
     project_token.load_secret_pem(project_secret_key_path)
     project_signature = project_token.sign(payload)
 
@@ -157,10 +195,67 @@ With redis now installed, let's create a publisher and publish the ``authenticat
 
 
 IoT Device
-----------
-First thing we need to do on the IoT device is copy over the oneID public key
-from the `oneID developer portal`_.
+~~~~~~~~~~
+Just like we did with the server we need to start with provisioning our IoT device.
 
-.. _developer account on oneID: https://developer.oneid.com/console
-.. _oneID developer portal: https://developer.oneid.com/console
+.. code-block:: console
+
+    $ oneid-cli provision --name "my edge device" --type device
+
+
+Now we need to copy over the oneID public key, project public key and the
+new device secret key. The oneID public key can be downloaded
+from the `oneID developer console`_.
+
+If you can SSH into your IoT device, you can do the same thing as we did with the server.
+
+.. code-block:: console
+
+    $ scp /Users/me/secret/device_secret.pem edison@10.1.2.3:/home/root/device_secret.pem
+    $ scp /Users/me/secret/oneid_pub.pem edison@10.1.2.3:/home/root/oneid_pub.pem
+    $ scp /Users/me/secret/project_pub.pem edison@10.1.2.3:/home/root/project_pub.pem
+
+In the final server step, we published a message through Redis.
+To receive that message, we're going to setup our IoT device as a subscriber.
+
+.. code-block:: python
+
+   import redis
+
+    # create a redis connection to send the
+    redis_conn = redis.StrictRedis(host='<redis ip address>', port=6379, db=0)
+    redis_sub = redis_conn.pubsub(ignore_subscribe_messages=True)
+    redis_sub.subscribe('edge_device:firmware_update')
+
+    # Get the message published
+    payload = redis_sub.get_message()
+
+
+.. note::
+    ``redis_sub.get_message()`` only returns a single message. If you want the device to
+    listen forever for new messages, you will need to wrap ``get_message()`` in a ``while True`` block.
+
+Now that we have the message that was sent to the IoT device, let's check the message's authenticity
+by verifying the digital signatures.
+
+.. code-block:: python
+
+   from oneid import keychain
+
+   # Load tokens into memory
+   oneID_key_path = '/home/root/oneid_pub.pem'
+   oneID_token = keychain.Token.from_public_key(path=oneID_key_path)
+
+   project_key_path = '/home/root/project_pub.pem'
+   project_token = keychain.Token.from_public_key(path=project_key_path)
+
+   # Verify Message
+   oneID_token.verify(payload.get('message'), payload.get('oneid_sig'))
+   project_token.verify(payload.get('message'), payload.get('project_sig'))
+
+If either of the tokens fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
+
+
+.. _oneID developer account: https://developer.oneid.com/console
+.. _oneID developer console: https://developer.oneid.com/console
 .. _Redis Quick Start: http://redis.io/topics/quickstart
