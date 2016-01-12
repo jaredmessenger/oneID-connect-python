@@ -42,5 +42,6 @@ setup(
                            exclude=['contrib', 'docs', 'tests*',
                                     'venv', 'example*', '*egg-info',
                                     '.gitignore']),
-    install_requires=['cryptography>=1.1.2', 'python-dateutil>=2.4.2'],
+    install_requires=['cryptography>=1.1.2', 'pyyaml',
+                      'requests', 'python-dateutil>=2.4.2'],
 )

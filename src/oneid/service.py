@@ -50,6 +50,126 @@ TOKEN_NOT_BEFORE_LEEWAY_SEC = (2*60)   # two minutes
 TOKEN_EXPIRATION_LEEWAY_SEC = (0)      # not really needed
 
 
+class ServiceCreator(object):
+    """
+    Read yaml file and add methods dynamically from file
+    Created by Session
+    """
+    def create_service_class(self, service_name, service_model, session, **kwargs):
+        """
+        Service Model is either user, server or edge_device
+        """
+        class_attrs = self._create_methods(service_model, **kwargs)
+        cls = type(service_name, (BaseService,), class_attrs)
+        return cls(session)
+
+    def _create_methods(self, service_model, **kwargs):
+        """
+        :param service_model:
+        :return: Dictionary of class attributes
+        """
+        base_url = kwargs.get('base_url', '')
+
+        methods = dict()
+        for method_name, method_values in service_model.iteritems():
+            required_jwt = list()
+            all_jwt = list()
+            for arg_name, arg_properties in method_values['arguments'].iteritems():
+                if arg_properties['location'] == 'jwt':
+                    all_jwt.append(arg_name)
+                    if arg_properties['required'] is True:
+                        required_jwt.append(arg_name)
+
+            absolute_url = '{base}{endpoint}'.format(base=base_url,
+                                                     endpoint=method_values['endpoint'])
+
+            methods[method_name] = self._create_api_method(method_name,
+                                                           absolute_url,
+                                                           method_values['method'],
+                                                           all_body_args=all_jwt,
+                                                           required_body_args=required_jwt,
+                                                           )
+        return methods
+
+    def _create_api_method(self, name,
+                           endpoint, http_method,
+                           all_body_args, required_body_args):
+        """
+        Add methods to session dynamically from yaml file
+
+        :param method_name: method that will be called
+        """
+        def _api_call(self, *args, **kwargs):
+            if kwargs.get('body') is None:
+                # if the body isn't specified, check for
+                # required body arguments
+                for required in required_body_args:
+                    if required not in kwargs:
+                        raise ValueError('Missing Required Keyword Argument:'
+                                         ' %s' % required)
+                kwargs.update(body_args=all_body_args)
+            return self._make_api_request(endpoint, http_method, **kwargs)
+
+        _api_call.__name__ = name
+        return _api_call
+
+
+class BaseService(object):
+    """
+    Dynamically loaded by data files.
+    """
+    def __init__(self, session):
+        """
+        Create a new Service
+
+        :param session: :class:`oneid.session.Session` instance
+        """
+        self.session = session
+
+    def _format_url(self, url_template, params):
+        """
+        Url from yaml may require formatting
+
+        :Example:
+
+            /project/{project_id}
+            >>> /project/abc-123
+
+        :param url_template: url with arguments that need replaced by vars
+        :param params: Dictionary lookup to replace url arguments with
+        :return: absolute url
+        """
+        encoded_params = dict()
+        url_args = re.findall(r'{(\w+)}', url_template)
+        for url_arg in url_args:
+            if url_arg in params:
+                encoded_params[url_arg] = params[url_arg]
+
+            else:
+                raise KeyError('Missing URL argument %s' % url_arg)
+        return url_template.format(**encoded_params)
+
+    def _make_api_request(self, endpoint, http_method, **kwargs):
+        """
+        Convenience method to make HTTP requests and handle responses/error codes
+
+        :param endpoint: URL to the resource
+        :param http_method: HTTP method, GET, POST, PUT, DELETE
+        :param kwargs: Params to pass to the body or url
+        """
+        # Split the params based on their type (url or jwt)
+        url = self._format_url(endpoint, kwargs)
+        if kwargs.get('body_args'):
+            additional_claims = dict()
+            for body in kwargs.get('body_args'):
+                additional_claims[body] = kwargs[body]
+            jwt = self.session.build_jwt(**additional_claims)
+            self.session.make_http_request(url, http_method, body=jwt)
+        elif kwargs.get('body'):
+            # Replace the entire body with kwargs['body']
+            self.session.make_http_request(url, http_method, body=kwargs.get('body'))
+
+
 def create_secret_key(output=None):
     """
     Create a secret key and save it to a secure location

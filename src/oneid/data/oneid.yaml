@@ -1,0 +1,28 @@
+GLOBAL:
+  base_url: https://api.oneid.com
+  api_version: 1.0
+
+authenticate:
+  edge_device:
+    endpoint: /co-sign/project/{project_id}/edge_device/{edge_device_id}
+    method: POST
+    help: Authenticate a payload with oneID.
+    arguments:
+      edge_device_id:
+        location: url
+        required: True
+      message:
+        location: jwt
+        required: True
+
+  server:
+    endpoint: /co-sign/project/{project_id}/server/{server_id}
+    method: POST
+    help: Authenticate a server request
+    arguments:
+      server_id:
+        location: url
+        required: True
+      payload:
+        location: jwt
+        required: True

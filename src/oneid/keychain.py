@@ -24,6 +24,8 @@ from cryptography.hazmat.primitives.serialization \
 from . import utils
 
 
+
+
 class Token(object):
     """
     oneID Token
