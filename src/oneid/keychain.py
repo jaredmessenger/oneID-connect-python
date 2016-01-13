@@ -242,6 +242,15 @@ class Keypair(object):
         """
         return self.public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
+    @property
+    def public_key_pem(self):
+        """
+        PEM formatted public key
+
+        :return: Public Key in PEM format
+        """
+        return self.public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+
     def save(self, *args, **kwargs):
         """
         Save a key.
