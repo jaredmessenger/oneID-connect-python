@@ -106,8 +106,8 @@ class ServiceCreator(object):
                 # required body arguments
                 for required in required_body_args:
                     if required not in kwargs:
-                        raise ValueError('Missing Required Keyword Argument:'
-                                         ' %s' % required)
+                        raise TypeError('Missing Required Keyword Argument:'
+                                        ' %s' % required)
                 kwargs.update(body_args=all_body_args)
             return self._make_api_request(endpoint, http_method, **kwargs)
 
@@ -128,7 +128,7 @@ class BaseService(object):
         self.session = session
         self.project_id = project_id
 
-    def _format_url(self, url_template, params):
+    def _format_url(self, url_template, **kwargs):
         """
         Url from yaml may require formatting
 
@@ -144,13 +144,13 @@ class BaseService(object):
         encoded_params = dict()
         url_args = re.findall(r'{(\w+)}', url_template)
         for url_arg in url_args:
-            if url_arg in params:
-                encoded_params[url_arg] = params[url_arg]
+            if url_arg in kwargs:
+                encoded_params[url_arg] = kwargs[url_arg]
             elif hasattr(self, url_arg):
                 # Check if the argument is a class attribute (i.e. project_id)
                 encoded_params[url_arg] = getattr(self, url_arg)
             else:
-                raise KeyError('Missing URL argument %s' % url_arg)
+                raise TypeError('Missing URL argument %s' % url_arg)
         return url_template.format(**encoded_params)
 
     def _make_api_request(self, endpoint, http_method, **kwargs):
@@ -162,7 +162,7 @@ class BaseService(object):
         :param kwargs: Params to pass to the body or url
         """
         # Split the params based on their type (url or jwt)
-        url = self._format_url(endpoint, kwargs)
+        url = self._format_url(endpoint, **kwargs)
         if kwargs.get('body_args'):
             additional_claims = dict()
             for body in kwargs.get('body_args'):
@@ -172,7 +172,6 @@ class BaseService(object):
         elif kwargs.get('body'):
             # Replace the entire body with kwargs['body']
             self.session.make_http_request(url, http_method, body=kwargs.get('body'))
-
 
 def create_secret_key(output=None):
     """
@@ -237,29 +236,6 @@ def decrypt_attr_value(attr_ct, aes_key):
     decryptor = cipher_alg.decryptor()
     return decryptor.update(ct) + decryptor.finalize()
 
-
-def make_jwt(claims, authorized_token):
-    """
-    Convert claims into JWT
-
-    :type claims: Dictionary that will be converted to json
-    :param claims: payload data
-    :param authorized_token: :py:class:`~oneid.keychain.Token` to sign the request
-    :return: JWT
-    """
-    alg = {'alg': 'ES256',
-           'typ': 'JWT'}
-    alg_serialized = json.dumps(alg)
-    alg_b64 = utils.base64url_encode(alg_serialized)
-
-    claims_serialized = json.dumps(claims)
-    claims_b64 = utils.base64url_encode(claims_serialized)
-
-    payload = '{alg}.{claims}'.format(alg=alg_b64, claims=claims_b64)
-
-    signature = authorized_token.sign(payload)
-
-    return '{payload}.{sig}'.format(payload=payload, sig=signature)
 
 
 def verify_jwt(jwt, verification_token=None):  # TODO: require verification_token
@@ -343,43 +319,3 @@ def _verify_jwt_claims(payload):
         return None
 
 
-def request_oneid_authentication(jwt, project_id):
-    """
-    Send a JWT signed by a server, device or user to oneID
-    for a two-factor authenticated message
-
-    :param jwt: Standard jwt with a header, claims and signature
-
-        *MUST HAVE SAME PAYLOAD THAT WILL BE SENT TO IoT DEVICE!*
-
-    :param project_id: project id
-    :return: JSON(payload, oneID Signature)
-    :raises: HTTPError
-    """
-    http_request = Request(AUTHENTICATION_ENDPOINT.format(project=project_id))
-    http_request.add_header('Content-Type', 'application/jwt')
-
-    return urlopen(http_request, jwt)
-
-
-def kdf(derivation_key, label, context='', key_size=128):
-    prf_output_size = 256
-    num_iterations = int(math.ceil((key_size+0.0)/prf_output_size))
-
-    if num_iterations > (math.pow(2, 32)-1):
-        return
-
-    prf_results = ['']
-    result = ''
-    params = ''
-    for i in range(1, num_iterations+1):
-        params = "%s%s%s%s%s%s" % (prf_results[i-1],
-                                   struct.pack('>I', i),
-                                   label, chr(0),
-                                   context,
-                                   struct.pack('>I', key_size))
-        digest = hmac.new(derivation_key, params, digestmod=hashlib.sha256).digest()
-        prf_results.append(digest)
-        result += digest
-        pass
-    return result[:key_size/8]

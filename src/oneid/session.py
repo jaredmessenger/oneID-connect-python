@@ -1,7 +1,8 @@
 import os
 import yaml
-from requests import request
 import json
+import base64
+from requests import request
 
 from . import service, utils, exceptions
 
@@ -15,7 +16,7 @@ class Session(object):
     """
     Configuration and Credentials in a single easy-to-use object
     """
-    def __init__(self, keychain=None, project_id=None):
+    def __init__(self, keychain=None, project_id=None, config=None):
         """
         Create a new Session object.
 
@@ -25,17 +26,21 @@ class Session(object):
         self._keychain = keychain
         self._project_id = project_id
 
-        params = self._load_config()
+        if isinstance(config, dict):
+            params = config
+        else:
+            default_config = os.path.join(os.path.dirname(__file__),
+                                          'data', 'oneid.yaml')
+            params = self._load_config(config if config else default_config)
 
         self._create_services(params)
 
-    def _load_config(self):
+    def _load_config(self, config_file):
         """
         Load configuration from file
         :return: dict()
         """
         # Load params from configuration file
-        config_file = os.path.join(os.path.dirname(__file__), 'data', 'oneid.yaml')
         with open(config_file, mode='r') as config:
             params = yaml.safe_load(config)
             return params
@@ -47,7 +52,7 @@ class Session(object):
         """
         service_creator = service.ServiceCreator()
 
-        # iterate over dynamic commands
+        # iterate over runtime services
         global_kwargs = params.get('GLOBAL', {})
         if self._project_id:
             global_kwargs['project_id'] = self._project_id
@@ -63,7 +68,7 @@ class Session(object):
         :param kwargs: Additional claims by the user.
         :return: JWT with default algorithm.
         """
-        alg_b64 = utils.base64url_encode(json.dumps(REQUIRED_JWT_HEADER_ELEMENTS))
+        alg_b64 = base64.b64encode(json.dumps(REQUIRED_JWT_HEADER_ELEMENTS))
 
         # Required claims
         jti = utils.make_nonce()
@@ -73,7 +78,7 @@ class Session(object):
         claims.update(kwargs)
 
         claims_serialized = json.dumps(claims)
-        claims_b64 = utils.base64url_encode(claims_serialized)
+        claims_b64 = base64.b64encode(claims_serialized)
 
         payload = '{alg_b64}.{claims_b64}'.format(alg_b64=alg_b64,
                                                   claims_b64=claims_b64)
@@ -94,30 +99,22 @@ class Session(object):
         """
         valid_http_methods = ['GET', 'PUT', 'POST', 'DELETE']
         if http_method not in valid_http_methods:
-            raise ValueError('http method must be %s' %
-                             ', '.join(valid_http_methods))
+            raise TypeError('http method must be %s' %
+                            ', '.join(valid_http_methods))
 
         auth_jwt_header = self.build_jwt()
-
+        print(auth_jwt_header)
         headers = {
             'Content-Type': 'application/jwt',
             'Authorization': 'Bearer %s' % auth_jwt_header
         }
-        print(url)
+
         # Will raise exceptions.ConnectionError or HTTPError
+        # if there isn't a response
         req = request(http_method, url, headers=headers, data=body)
 
+        # 403 is Forbidden, raise an error if this occurs
         if req.status_code == 403:
             raise exceptions.InvalidAuthentication()
 
         return req.content
-
-
-    def get_service_model(self, service_name):
-        """
-        Get :class:`oneid.service.Service` object
-
-        :param service_name:
-        :return: :class:`oneid.service.Service
-        """
-        raise NotImplementedError
