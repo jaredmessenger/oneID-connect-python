@@ -27,7 +27,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PrivateFormat, NoEncryption
 
-from .keychain import Token
+from .keychain import Keypair
 from . import utils
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def create_secret_key(output=None):
     Create a secret key and save it to a secure location
 
     :param output: Path to save the secret key
-    :return: oneid.keychain.Token
+    :return: oneid.keychain.Keypair
     """
     secret_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
     secret_key_bytes = secret_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
@@ -65,7 +65,7 @@ def create_secret_key(output=None):
         with open(output, 'w') as f:
             f.write(secret_key_bytes)
 
-    return Token.from_secret_pem(key_bytes=secret_key_bytes)
+    return Keypair.from_secret_pem(key_bytes=secret_key_bytes)
 
 
 def create_aes_key():
@@ -114,13 +114,13 @@ def decrypt_attr_value(attr_ct, aes_key):
     return decryptor.update(ct) + decryptor.finalize()
 
 
-def make_jwt(claims, authorized_token):
+def make_jwt(claims, authorized_keypair):
     """
     Convert claims into JWT
 
     :type claims: Dictionary that will be converted to json
     :param claims: payload data
-    :param authorized_token: :py:class:`~oneid.keychain.Token` to sign the request
+    :param authorized_key: :py:class:`~oneid.keychain.Keypair` to sign the request
     :return: JWT
     """
     alg = {'alg': 'ES256',
@@ -133,12 +133,12 @@ def make_jwt(claims, authorized_token):
 
     payload = '{alg}.{claims}'.format(alg=alg_b64, claims=claims_b64)
 
-    signature = authorized_token.sign(payload)
+    signature = authorized_keypair.sign(payload)
 
     return '{payload}.{sig}'.format(payload=payload, sig=signature)
 
 
-def verify_jwt(jwt, verification_token=None):  # TODO: require verification_token
+def verify_jwt(jwt, verification_keypair=None):  # TODO: require verification_token
     """
     Convert a JWT back to it's claims, if validated by the :py:class:`~oneid.keychain.Token`
 
@@ -166,7 +166,7 @@ def verify_jwt(jwt, verification_token=None):  # TODO: require verification_toke
         logger.debug('no message: %s', message)
         return False
 
-    if verification_token and not verification_token.verify(*(str(jwt).rsplit('.', 1))):
+    if verification_keypair and not verification_keypair.verify(*(str(jwt).rsplit('.', 1))):
         logger.debug('invalid signature, header=%s, message=%s', header, message)
         return False
 
