@@ -10,8 +10,8 @@ By sending messages with digital signatures, you can authenticate the origin of 
 ensure the message hasn't been tampered with. ``oneID-connect`` makes it simple for projects that need to
 send authenticated messages and verify the authentication of messages.
 
-oneID-py can be installed on IoT devices and servers that support python 2.7.
-oneID-py depends on two external libraries: the cryptography.io python package and openSSL.
+``oneID-connect`` can be installed on IoT devices and servers that support python 2.7.
+``oneID-connect`` depends on two external libraries: the cryptography.io python package and openSSL.
 
 
 
