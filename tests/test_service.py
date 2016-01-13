@@ -25,6 +25,6 @@ class TestBaseService(unittest.TestCase):
 
 class TestCreateToken(unittest.TestCase):
     def test_token(self):
-        token = service.create_secret_key()
-        self.assertIsInstance(token, keychain.Token)
+        kp = service.create_secret_key()
+        self.assertIsInstance(kp, keychain.Keypair)
 
