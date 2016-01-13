@@ -9,6 +9,7 @@ import binascii
 import base64
 
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey, \
     EllipticCurvePrivateKey, EllipticCurvePublicNumbers, SECP256R1
 from cryptography.hazmat.backends import default_backend
@@ -24,15 +25,79 @@ from cryptography.hazmat.primitives.serialization \
 from . import utils
 
 
-class Token(object):
+class Credentials(object):
     """
-    oneID Token
+    Container for User/Server/Device Encryption Key, Signing Key, Identity
     """
+    def __init__(self, uuid, keypair):
+        """
+
+        :param identity: uuid of the entity
+        :param keypair: :py:class:`~oneid.keychain.Keypair` instance
+        """
+        self.id = uuid
+
+        if not isinstance(keypair, Keypair):
+            raise ValueError('keypair must be a oneid.keychain.Keypair instance')
+
+        self.keypair = keypair
+
+
+class ProjectCredentials(Credentials):
+    def __init__(self, uuid, keypair, encryption_key):
+        """
+        Adds an ecryption key
+
+        :param uuid: oneID project UUID
+        :param keypair: :py:class:`~oneid.keychain.Keypair`
+        :param encryption_key: AES key used to encrypt messages
+        """
+        super(ProjectCredentials, self).__init__(uuid, keypair)
+        self._encryption_key = encryption_key
+
+    def encrypt(self, plain_text):
+        """
+
+        :param value: String to encrypt with project encryption key
+        :returns: Dictionary with cipher text and encryption params
+        """
+        iv = os.urandom(16)
+        cipher_alg = Cipher(algorithms.AES(self._encryption_key), modes.GCM(iv), backend=default_backend())
+        encryptor = cipher_alg.encryptor()
+        encr_value = encryptor.update(plain_text) + encryptor.finalize()
+        encr_value_b64 = base64.b64encode(encr_value + encryptor.tag)
+        iv_b64 = base64.b64encode(iv)
+        return {'cipher': 'aes', 'mode': 'gcm', 'ts': 128, 'iv': iv_b64, 'ct': encr_value_b64}
+
+    def decrypt(self, cipher_text, iv=None, cipher='aes', mode='gcm', tag_size=128):
+        """
+        Decrypt cipher text that was encrypted with the project encryption key
+
+        :param cipher_text: Encrypted text
+        :param iv: Base64 encoded initialization vector
+        :param mode: encryption mode
+        :param tag_size: tag size
+        :returns: plain text
+        """
+        if cipher.lower() == 'aes' and mode.lower() == 'gcm' and iv is None:
+            raise ValueError('IV must be specified with using AES and GCM')
+
+        iv = base64.b64decode(iv)
+        tag_ct = base64.b64decode(cipher_text)
+        ts = tag_size // 8
+        tag = tag_ct[-ts:]
+        ct = tag_ct[:-ts]
+        cipher_alg = Cipher(algorithms.AES(self._encryption_key),
+                            modes.GCM(iv, tag, min_tag_length=8),
+                            backend=default_backend())
+        decryptor = cipher_alg.decryptor()
+        return decryptor.update(ct) + decryptor.finalize()
+
+
+class Keypair(object):
     def __init__(self, *args, **kwargs):
         """
-        :param args:
-        :param kwargs:
-        :return:
+        :param kwargs: Pass secret key bytes
         """
         self.identity = kwargs.get('identity')
 
@@ -55,7 +120,7 @@ class Token(object):
         """
         secret_der = self._private_key.private_bytes(Encoding.DER, PrivateFormat.PKCS8, NoEncryption())
 
-        return base64.b64encode(secret_der)
+        return secret_der
 
     @property
     def secret_as_pem(self):
@@ -93,7 +158,7 @@ class Token(object):
         secret_bytes = load_der_private_key(der_key, None, default_backend())
         return cls(secret_bytes=secret_bytes)
 
-    def load_validate(self, x, y):
+    def _load_public_key_by_coord(self, x, y):
         """
         load validate key by the curve points
         :param x: long x coordinate of ecc curve
@@ -103,37 +168,14 @@ class Token(object):
         self._public_key = EllipticCurvePublicNumbers(x, y, SECP256R1()).public_key(default_backend())
 
     @classmethod
-    def from_public_key(cls, public_key):
-        """
-        Given a base64-encoded public key, convert it into a token to
-        validate signatures
-        :param public_key: Base64-encoded (non-URL-safe) public key
-        :return: Token()
-        """
-        bin_sig = base64.b64decode(public_key)
-        coordinate_len = len(bin_sig)/2
-
-        bin_x = bin_sig[:coordinate_len]
-        bin_y = bin_sig[coordinate_len:]
-
-        x = unpack_bytes(bin_x)
-        y = unpack_bytes(bin_y)
-
-        new_token = cls()
-        new_token.load_validate(x, y)
-
-        return new_token
-
-    @classmethod
     def from_public_der(cls, public_key):
         """
-        Given a base64-encoded DER-format public key, convert it into a token to
+        Given a DER-format public key, convert it into a token to
         validate signatures
         :param public_key: Base64-encoded (non-URL-safe) public key
         :return: Token()
         """
-        bin_sig = base64.b64decode(public_key)
-        pub = load_der_public_key(bin_sig, default_backend())
+        pub = load_der_public_key(public_key, default_backend())
 
         new_token = cls()
         new_token._public_key = pub
@@ -190,17 +232,6 @@ class Token(object):
             return self._public_key
         elif self._private_key:
             return self._private_key.public_key()
-
-    @property
-    def public_key_b64(self):
-        """
-        Convert the public key as base64 for sharing
-        :return: Base64 Encoded Str()
-        """
-        public_numbers = self.public_key.public_numbers()
-
-        return utils.base64url_encode('{x}{y}'.format(x=int2bytes(public_numbers.x),
-                                                      y=int2bytes(public_numbers.y)))
 
     @property
     def public_key_der(self):
