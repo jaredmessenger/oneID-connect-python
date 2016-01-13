@@ -15,16 +15,18 @@ class Session(object):
     """
     Configuration and Credentials in a single easy-to-use object
     """
-    def __init__(self, keychain=None):
+    def __init__(self, keychain=None, project_id=None):
         """
         Create a new Session object.
 
         :param keychain: :class:`oneid.keychain.Token` instance
         """
         # TODO: Load default credentials if keychain not provided
-        self.keychain = keychain
+        self._keychain = keychain
+        self._project_id = project_id
 
         params = self._load_config()
+
         self._create_services(params)
 
     def _load_config(self):
@@ -46,7 +48,10 @@ class Session(object):
         service_creator = service.ServiceCreator()
 
         # iterate over dynamic commands
-        global_kwargs = params.get('GLOBAL')
+        global_kwargs = params.get('GLOBAL', {})
+        if self._project_id:
+            global_kwargs['project_id'] = self._project_id
+
         for cmd in params:
             if cmd != 'GLOBAL':
                 setattr(self, cmd, service_creator.create_service_class(cmd, params[cmd], self, **global_kwargs))
@@ -62,7 +67,7 @@ class Session(object):
 
         # Required claims
         jti = utils.make_nonce()
-        iss = self.keychain.identity
+        iss = self._keychain.identity
 
         claims = {'jti': jti, 'iss': iss}
         claims.update(kwargs)
@@ -73,7 +78,7 @@ class Session(object):
         payload = '{alg_b64}.{claims_b64}'.format(alg_b64=alg_b64,
                                                   claims_b64=claims_b64)
 
-        signature = self.keychain.sign(payload)
+        signature = self._keychain.sign(payload)
 
         return '{payload}.{signature}'.format(payload=payload, signature=signature)
 
@@ -98,7 +103,7 @@ class Session(object):
             'Content-Type': 'application/jwt',
             'Authorization': 'Bearer %s' % auth_jwt_header
         }
-
+        print(url)
         # Will raise exceptions.ConnectionError or HTTPError
         req = request(http_method, url, headers=headers, data=body)
 

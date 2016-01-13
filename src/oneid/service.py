@@ -61,7 +61,8 @@ class ServiceCreator(object):
         """
         class_attrs = self._create_methods(service_model, **kwargs)
         cls = type(service_name, (BaseService,), class_attrs)
-        return cls(session)
+
+        return cls(session, kwargs.get('project_id'))
 
     def _create_methods(self, service_model, **kwargs):
         """
@@ -118,13 +119,14 @@ class BaseService(object):
     """
     Dynamically loaded by data files.
     """
-    def __init__(self, session):
+    def __init__(self, session, project_id=None):
         """
         Create a new Service
 
         :param session: :class:`oneid.session.Session` instance
         """
         self.session = session
+        self.project_id = project_id
 
     def _format_url(self, url_template, params):
         """
@@ -144,7 +146,9 @@ class BaseService(object):
         for url_arg in url_args:
             if url_arg in params:
                 encoded_params[url_arg] = params[url_arg]
-
+            elif hasattr(self, url_arg):
+                # Check if the argument is a class attribute (i.e. project_id)
+                encoded_params[url_arg] = getattr(self, url_arg)
             else:
                 raise KeyError('Missing URL argument %s' % url_arg)
         return url_template.format(**encoded_params)

@@ -23,6 +23,6 @@ authenticate:
       server_id:
         location: url
         required: True
-      payload:
+      message:
         location: jwt
         required: True

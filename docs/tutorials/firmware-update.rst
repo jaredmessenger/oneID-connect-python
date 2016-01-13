@@ -69,52 +69,36 @@ In python, we're just going to hardcode the path to these keys for quick access.
     import base64
 
     from oneid.token import Token
-    from oneid.util import make_nonce
+    from oneid.session import Session
 
     # Secret keys we downloaded from oneID Developer Portal
     server_secret_key_path = '/home/www/server_key.pem'
     project_secret_key_path = '/home/www/project_key.pem'
 
-    nonce = make_nonce()
-    now = int(time.time())
-
-    server_id = 'unique_server_id'
-
-    header = {'alg': 'ES256', 'typ': 'JWT'}
-    message = {'url': 'https://static.oneid.com/firmware/abc',
-               'checksum': 'abcd',
-               'iss': server_id,
-               'jti', nonce,
-               'nbf': now,
-               'exp': now + 60,
-              }
-
-    header_json = json.dumps(header)
-    message_json = json.dumps(message)
-
-    payload = '{header}.{message}'.format(header=base64.b64encode(header_json),
-                                          message=base64.b64encode(message_json))
+    # Unique Server id,
+    # we generated ours from uuid.uuid4()
+    server_id = 'c75a1dfe-b468-4820-9114-2c94c7e092dc'
 
     # using the server's private key that was downloaded
     # from the oneID Developer Portal, sign the payload
-    server_token = Token()
-    server_token.load_secret_pem(server_secret_key_path)
-    server_signature = server_token.sign(payload)
+    server_token = Token.load_secret_pem(server_secret_key_path)
+    server_token.identity = server_id
 
-    server_jwt = '{payload}.{signature}'.format(payload=payload,
-                                                signature=server_signature)
+    session = Session(server_token, project_id='<insert project id from oneID>')
 
-    try:
-        # send server_jwt to oneID to receive oneID's signature
-        payload, oneid_signature = oneid.authenticate(server_jwt)
-    except Exception as e:
-        print('Failed to receive oneID\'s authentication')
-        print('Error %e' % e.description)
-        raise ValueError(e.description)
+    auth_response = session.authenticate.server(server_id=server_id)
+
+    # Strip oneID's signature off the response
+    # *oneID responds with the same payload, but signs with its secret key
+    oneid_sig = auth_response.split('.')[-1]
+
+    # WARNING, if you change anything in the claims here,
+    # verification will fail
+    alg, claims = auth_response.split('.')[:2]
+    payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
 
     # sign the payload with the project token
-    project_token = Token()
-    project_token.load_secret_pem(project_secret_key_path)
+    project_token = Token.load_secret_pem(project_secret_key_path)
     project_signature = project_token.sign(payload)
 
     # create a message with both signatures
