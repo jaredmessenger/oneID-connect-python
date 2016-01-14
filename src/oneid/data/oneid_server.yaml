@@ -4,11 +4,11 @@ GLOBAL:
 
 authenticate:
   edge_device:
-    endpoint: /co-sign/project/{project_id}/edge_device/{edge_device_id}
+    endpoint: /project/{project_id}/cosign_for_edge_device/{identity}
     method: POST
     help: Authenticate a payload with oneID.
     arguments:
-      edge_device_id:
+      identity:
         location: url
         required: True
       message:
@@ -16,11 +16,11 @@ authenticate:
         required: True
 
   server:
-    endpoint: /co-sign/project/{project_id}/server/{server_id}
+    endpoint: /project/{project_id}/cosign_for_server/{identity}
     method: POST
     help: Authenticate a server request
     arguments:
-      server_id:
+      identity:
         location: url
         required: True
       message:

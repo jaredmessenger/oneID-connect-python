@@ -1,0 +1,22 @@
+GLOBAL:
+  base_url: https://api.oneid.com
+  api_version: 1.0
+
+revoke:
+  edge_device:
+    endpoint: /co-sign/project/{project_id}/edge_device/{edge_device_id}/revoke
+    method: POST
+    help: Revoke an edge device.
+    arguments:
+      edge_device_id:
+        location: url
+        required: True
+
+  server:
+    endpoint: /co-sign/project/{project_id}/server/{server_id}/revoke
+    method: POST
+    help: Revoke a server
+    arguments:
+      server_id:
+        location: url
+        required: True

@@ -1,11 +1,18 @@
 import unittest
+import mock
 
 from oneid import service, keychain
 
 
 class TestBaseService(unittest.TestCase):
     def setUp(self):
-        self.service = service.BaseService(None, None)
+        mock_credentials = mock.Mock()
+        mock_credentials.configure_mock(id='me')
+        mock_session = mock.Mock()
+        mock_attrs = {'identity_credentials.return_value': mock_credentials}
+        mock_session.configure_mock(**mock_attrs)
+
+        self.service = service.BaseService(mock_session, None)
 
     def test_form_url_params(self):
         url = '/{test_param}/end_test'

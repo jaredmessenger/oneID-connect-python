@@ -122,7 +122,13 @@ class BaseService(object):
         :param session: :class:`oneid.session.Session` instance
         """
         self.session = session
-        self.project_credentials = project_credentials
+
+        self.project_credentials = None
+        if hasattr(self.session, 'project_credentials'):
+            self.project_credentials = self.session.project_credentials
+
+        self.identity = self.session.identity_credentials.id
+        self.credentials = self.session.identity_credentials
 
         if self.project_credentials and self.project_credentials.id:
             self.project_id = self.project_credentials.id
@@ -162,16 +168,22 @@ class BaseService(object):
         """
         # Split the params based on their type (url or jwt)
         url = self._format_url(endpoint, **kwargs)
+
         if kwargs.get('body_args'):
             additional_claims = dict()
             for body in kwargs.get('body_args'):
                 additional_claims[body] = kwargs[body]
-            jwt = self.session.prepare_message(**additional_claims)
-            self.session.send_service_message(http_method, url, body=jwt)
+
+            payload = self.session.create_jwt_payload(**additional_claims)
+            jwt = '{payload}.{signature}'.format(payload=payload,
+                                                 signature=self.credentials.keypair.sign(payload))
+            self.session.service_request(http_method, url, body=jwt)
         elif kwargs.get('body'):
             # Replace the entire body with kwargs['body']
-            self.session.send_service_message(http_method, url,
-                                              body=kwargs.get('body'))
+            self.session.service_request(http_method, url,
+                                         body=kwargs.get('body'))
+        else:
+            self.session.service_request(http_method, url)
 
 
 def create_secret_key(output=None):

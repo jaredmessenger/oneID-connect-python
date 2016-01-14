@@ -59,10 +59,10 @@ class SessionBase(object):
                                                              **kwargs)
                         )
 
-    def create_jwt_payload(self, header, **kwargs):
+    def create_jwt_payload(self, **kwargs):
         """
+        Create a generic JWT Payload
 
-        :param header: JWT Header Dict()
         :param claims: JWT Claims Dict()
         :return: JWT payload (*no signature)
         """
@@ -154,7 +154,7 @@ class DeviceSession(SessionBase):
         :return: JSON with JWT payload and two signatures
         """
         kwargs['iss'] = self.identity_credentials.id
-        payload = self.create_jwt_payload(REQUIRED_JWT_HEADER_ELEMENTS, **kwargs)
+        payload = self.create_jwt_payload(**kwargs)
         identity_sig = self.identity_credentials.sign(payload)
         app_sig = self.app_credentials.sign(payload)
 
@@ -163,6 +163,92 @@ class DeviceSession(SessionBase):
                            'app_signature': app_sig})
 
     def send_message(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+class ServerSession(SessionBase):
+    """
+    Enable Server to request two-factor Authentication from oneID
+    """
+    def __init__(self, identity_credentials, application_credentials=None,
+                 project_credentials=None, oneid_credentials=None, config=None):
+        super(ServerSession, self).__init__(identity_credentials,
+                                            application_credentials,
+                                            project_credentials,
+                                            oneid_credentials, config)
+
+        if isinstance(config, dict):
+            params = config
+        else:
+            # Load default
+            default_config = os.path.join(os.path.dirname(__file__),
+                                          'data', 'oneid_server.yaml')
+            params = self._load_config(config if config else default_config)
+
+        self._create_services(params)
+
+    def _create_services(self, params, **kwargs):
+        """
+        Populate session variables and create methods from
+        :return: None
+        """
+        global_kwargs = params.get('GLOBAL', {})
+        if self.project_credentials:
+            global_kwargs['project_credentials'] = self.project_credentials
+
+        super(ServerSession, self)._create_services(params, **global_kwargs)
+
+    def service_request(self, http_method, endpoint, body=None):
+        """
+        Make an API Request
+
+        :param method:
+        :param endpoint:
+        :param body:
+        :return:
+        """
+        payload = self.create_jwt_payload()
+
+        signature = self.identity_credentials.keypair.sign(payload)
+
+        auth_jwt_header = '{payload}.{signature}'.format(payload=payload,
+                                                         signature=signature)
+
+        headers = {
+            'Content-Type': 'application/jwt',
+            'Authorization': 'Bearer %s' % auth_jwt_header
+        }
+
+        response = self.make_http_request(http_method, endpoint, headers=headers,
+                                          body=body)
+
+        return response
+
+    def prepare_message(self, *args, **kwargs):
+        """
+        Build message that has two-factor signatures
+
+        :param kwargs: Claims to add to the JWT
+        :return: Content to be sent to devices
+        """
+        if self.project_credentials is None:
+            raise AttributeError
+
+        oneid_response = kwargs.pop('oneid_response')
+        # split the JWT Token
+        alg, claims, oneid_sig = oneid_response.split('.')
+        payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
+
+        project_sig = self.project_credentials.sign(payload)
+
+        return json.dumps({'payload': payload,
+                           'project_signature': project_sig,
+                           'oneid_signature': oneid_sig})
+
+    def send_message(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def verify_message(self, *args, **kwargs):
         raise NotImplementedError
 
 
@@ -178,17 +264,12 @@ class AdminSession(SessionBase):
                                             application_credentials,
                                             project_credentials,
                                             oneid_credentials, config)
-        # Initial Signature
-        self.identity = identity_credentials
-
-        # Project credentials enable encryption
-        self.project = project_credentials
 
         if isinstance(config, dict):
             params = config
         else:
             default_config = os.path.join(os.path.dirname(__file__),
-                                          'data', 'oneid.yaml')
+                                          'data', 'oneid_admin.yaml')
             params = self._load_config(config if config else default_config)
 
         self._create_services(params)
@@ -199,35 +280,21 @@ class AdminSession(SessionBase):
         :return: None
         """
         global_kwargs = params.get('GLOBAL', {})
-        if self.project:
-            global_kwargs['project_credentials'] = self.project
+        if self.project_credentials:
+            global_kwargs['project_credentials'] = self.project_credentials
 
         super(AdminSession, self)._create_services(params, **global_kwargs)
 
-    def prepare_message(self, *args, **kwargs):
+    def service_request(self, http_method, endpoint, body=None):
         """
-        Create the body given body kwargs
+        Make an API Request
 
-        :param args:
-        :param kwargs: Additional claims to add to the JWT
-        :return: JWT signed by identity
-        """
-        payload = self.create_jwt_payload(REQUIRED_JWT_HEADER_ELEMENTS,
-                                          **kwargs)
-        signature = self.identity_credentials.keypair.sign(payload)
-        return '{payload}.{signature}'.format(payload=payload,
-                                              signature=signature)
-
-    def send_message(self, http_method, url, **kwargs):
-        """
-        Service Message is called from :py:class:`~oneid.service.BaseService`
-
-        :param http_method: GET, PUT, POST, DELETE
-        :param url: Service Endpoint URL
-        :param kwargs: Add HTTP Body
+        :param method:
+        :param endpoint:
+        :param body:
         :return:
         """
-        payload = self.create_jwt_payload(REQUIRED_JWT_HEADER_ELEMENTS, **kwargs)
+        payload = self.create_jwt_payload()
 
         signature = self.identity_credentials.keypair.sign(payload)
 
@@ -239,7 +306,18 @@ class AdminSession(SessionBase):
             'Authorization': 'Bearer %s' % auth_jwt_header
         }
 
-        response = self.make_http_request(http_method, url, headers=headers,
-                                           body=kwargs.get('body', None))
+        response = self.make_http_request(http_method, endpoint, headers=headers,
+                                          body=body)
 
         return response
+
+    def prepare_message(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def send_message(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def verify_message(self, *args, **kwargs):
+        raise NotImplementedError
+
+
