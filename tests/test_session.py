@@ -13,6 +13,8 @@ class TestSession(unittest.TestCase):
                 '-----END PRIVATE KEY-----'
 
     def setUp(self):
+        mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.key_bytes)
+        self.credentials = keychain.Credentials('me', mock_keypair)
         self.custom_config = dict()
         global_config = self.custom_config['GLOBAL'] = dict()
         global_config['base_url'] = 'https://myService'
@@ -26,15 +28,17 @@ class TestSession(unittest.TestCase):
                                          'required': True}
 
     def test_session_config(self):
-        sess = session.Session(config=self.custom_config)
+        sess = session.AdminSession(self.credentials,
+                                    config=self.custom_config)
         self.assertIsInstance(sess.test_service, service.BaseService)
         self.assertEqual(sess.test_service.__class__.__name__, 'test_service')
 
     def test_session_missing_arg(self):
-        sess = session.Session(config=self.custom_config)
+        sess = session.AdminSession(self.credentials,
+                                    config=self.custom_config)
         self.assertRaises(TypeError, sess.test_service.test_method)
 
-    def test_build_jwt(self):
+    def test_admin_prepare(self):
         nonce = utils.make_nonce()
         alg = {'typ': 'JWT', 'alg': 'ES256'}
         claims = {'jti': nonce, 'iss': 'unit tester'}
@@ -48,9 +52,8 @@ class TestSession(unittest.TestCase):
         valid_payload = '{alg_b64}.{claims_b64}'.format(alg_b64=alg_b64,
                                                         claims_b64=claims_b64)
 
-        credentials = keychain.Token.from_secret_pem(key_bytes=TestSession.key_bytes)
-        sess = session.Session(credentials)
-        jwt = sess.build_jwt(**claims)
+        sess = session.AdminSession(self.credentials)
+        jwt = sess.prepare_message(**claims)
 
         sess_alg, sess_claims = jwt.split('.')[:2]
         test_payload = '{alg_b64}.{claims_b64}'.format(alg_b64=sess_alg,
@@ -64,8 +67,7 @@ class TestSession(unittest.TestCase):
                     'MiuLE5eP0QUJop_tJT-QBFA2-9rrqjSy7SZ7ADVDkqmd8ZwWvl7J_wf' \
                     'a3GLeNQNkxIJwhSw'
 
-        credentials = keychain.Token.from_secret_pem(key_bytes=TestSession.key_bytes)
-        service.verify_jwt(valid_jwt, credentials)
+        service.verify_jwt(valid_jwt, self.credentials.keypair)
 
 
 

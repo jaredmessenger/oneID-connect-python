@@ -6,12 +6,8 @@ keys, JWTs, etc.
 """
 
 import os
-import math
-import hmac
-import hashlib
 import json
 import base64
-import struct
 import re
 import time
 import logging
@@ -62,7 +58,7 @@ class ServiceCreator(object):
         class_attrs = self._create_methods(service_model, **kwargs)
         cls = type(service_name, (BaseService,), class_attrs)
 
-        return cls(session, kwargs.get('project_id'))
+        return cls(session, kwargs.get('project_credentials'))
 
     def _create_methods(self, service_model, **kwargs):
         """
@@ -119,14 +115,17 @@ class BaseService(object):
     """
     Dynamically loaded by data files.
     """
-    def __init__(self, session, project_id=None):
+    def __init__(self, session, project_credentials=None):
         """
         Create a new Service
 
         :param session: :class:`oneid.session.Session` instance
         """
         self.session = session
-        self.project_id = project_id
+        self.project_credentials = project_credentials
+
+        if self.project_credentials and self.project_credentials.id:
+            self.project_id = self.project_credentials.id
 
     def _format_url(self, url_template, **kwargs):
         """
@@ -167,11 +166,13 @@ class BaseService(object):
             additional_claims = dict()
             for body in kwargs.get('body_args'):
                 additional_claims[body] = kwargs[body]
-            jwt = self.session.build_jwt(**additional_claims)
-            self.session.make_http_request(url, http_method, body=jwt)
+            jwt = self.session.prepare_message(**additional_claims)
+            self.session.send_service_message(http_method, url, body=jwt)
         elif kwargs.get('body'):
             # Replace the entire body with kwargs['body']
-            self.session.make_http_request(url, http_method, body=kwargs.get('body'))
+            self.session.send_service_message(http_method, url,
+                                              body=kwargs.get('body'))
+
 
 def create_secret_key(output=None):
     """
