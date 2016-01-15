@@ -28,6 +28,10 @@ from . import utils
 class Credentials(object):
     """
     Container for User/Server/Device Encryption Key, Signing Key, Identity
+
+
+    :ivar identity: UUID of the identity.
+    :ivar keypair: :class:`~oneid.keychain.Keypair` instance.
     """
     def __init__(self, uuid, keypair):
         """
@@ -57,9 +61,10 @@ class ProjectCredentials(Credentials):
 
     def encrypt(self, plain_text):
         """
+        Encrypt plain text with the project encryption key.
 
-        :param value: String to encrypt with project encryption key
-        :returns: Dictionary with cipher text and encryption params
+        :param plain_text: String to encrypt with project encryption key.
+        :returns: Dictionary with cipher text and encryption params.
         """
         iv = os.urandom(16)
         cipher_alg = Cipher(algorithms.AES(self._encryption_key), modes.GCM(iv), backend=default_backend())
@@ -75,8 +80,8 @@ class ProjectCredentials(Credentials):
 
         :param cipher_text: Encrypted text
         :param iv: Base64 encoded initialization vector
-        :param mode: encryption mode
-        :param tag_size: tag size
+        :param mode: encryption mode i.e. gcm
+        :param tag_size: tag size, default 128
         :returns: plain text
         """
         if cipher.lower() == 'aes' and mode.lower() == 'gcm' and iv is None:
@@ -134,8 +139,9 @@ class Keypair(object):
     @classmethod
     def from_secret_pem(cls, key_bytes=None, path=None):
         """
-        Read a pem file and set it as the private key
-        :return: Return new Token instance
+        Create a :class:`~oneid.keychain.Keypair` from a pem formatted data
+
+        :return: :class:`~oneid.keychain.Keypair` instance
         """
         if key_bytes:
             secret_bytes = load_pem_private_key(key_bytes, None, default_backend())
@@ -150,7 +156,7 @@ class Keypair(object):
     def from_secret_der(cls, der_key):
         """
         Read a der_key, convert it a private key
-        :param path:
+        :param path: der formatted key
         :return:
         """
         secret_bytes = load_der_private_key(der_key, None, default_backend())
@@ -170,8 +176,8 @@ class Keypair(object):
         """
         Given a DER-format public key, convert it into a token to
         validate signatures
-        :param public_key: Base64-encoded (non-URL-safe) public key
-        :return: Token()
+        :param public_key: der formatted key
+        :return: :class:`~oneid.keychain.Keypair` instace
         """
         pub = load_der_public_key(public_key, default_backend())
 
@@ -253,8 +259,6 @@ class Keypair(object):
         """
         Save a key.
         Should be overridden and saved to secure storage
-        pr_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
-        pr_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
         :param args:
         :param kwargs:
