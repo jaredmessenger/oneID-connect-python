@@ -6,12 +6,8 @@ keys, JWTs, etc.
 """
 
 import os
-import math
-import hmac
-import hashlib
 import json
 import base64
-import struct
 import re
 import time
 import logging
@@ -48,6 +44,146 @@ REQUIRED_JWT_HEADER_ELEMENTS = {
 TOKEN_EXPIRATION_TIME_SEC = (1*60*60)  # one hour
 TOKEN_NOT_BEFORE_LEEWAY_SEC = (2*60)   # two minutes
 TOKEN_EXPIRATION_LEEWAY_SEC = (0)      # not really needed
+
+
+class ServiceCreator(object):
+    """
+    Read yaml file and add methods dynamically from file
+    Created by Session
+    """
+    def create_service_class(self, service_name, service_model, session, **kwargs):
+        """
+        Service Model is either user, server or edge_device
+        """
+        class_attrs = self._create_methods(service_model, **kwargs)
+        cls = type(service_name, (BaseService,), class_attrs)
+
+        return cls(session, kwargs.get('project_credentials'))
+
+    def _create_methods(self, service_model, **kwargs):
+        """
+        :param service_model:
+        :return: Dictionary of class attributes
+        """
+        base_url = kwargs.get('base_url', '')
+
+        methods = dict()
+        for method_name, method_values in service_model.iteritems():
+            required_jwt = list()
+            all_jwt = list()
+            for arg_name, arg_properties in method_values['arguments'].iteritems():
+                if arg_properties['location'] == 'jwt':
+                    all_jwt.append(arg_name)
+                    if arg_properties['required'] is True:
+                        required_jwt.append(arg_name)
+
+            absolute_url = '{base}{endpoint}'.format(base=base_url,
+                                                     endpoint=method_values['endpoint'])
+
+            methods[method_name] = self._create_api_method(method_name,
+                                                           absolute_url,
+                                                           method_values['method'],
+                                                           all_body_args=all_jwt,
+                                                           required_body_args=required_jwt,
+                                                           )
+        return methods
+
+    def _create_api_method(self, name,
+                           endpoint, http_method,
+                           all_body_args, required_body_args):
+        """
+        Add methods to session dynamically from yaml file
+
+        :param method_name: method that will be called
+        """
+        def _api_call(self, *args, **kwargs):
+            if kwargs.get('body') is None:
+                # if the body isn't specified, check for
+                # required body arguments
+                for required in required_body_args:
+                    if required not in kwargs:
+                        raise TypeError('Missing Required Keyword Argument:'
+                                        ' %s' % required)
+                kwargs.update(body_args=all_body_args)
+            return self._make_api_request(endpoint, http_method, **kwargs)
+
+        _api_call.__name__ = name
+        return _api_call
+
+
+class BaseService(object):
+    """
+    Dynamically loaded by data files.
+    """
+    def __init__(self, session, project_credentials=None):
+        """
+        Create a new Service
+
+        :param session: :class:`oneid.session.Session` instance
+        """
+        self.session = session
+
+        self.project_credentials = None
+        if hasattr(self.session, 'project_credentials'):
+            self.project_credentials = self.session.project_credentials
+
+        self.identity = self.session.identity_credentials.id
+        self.credentials = self.session.identity_credentials
+
+        if self.project_credentials and self.project_credentials.id:
+            self.project_id = self.project_credentials.id
+
+    def _format_url(self, url_template, **kwargs):
+        """
+        Url from yaml may require formatting
+
+        :Example:
+
+            /project/{project_id}
+            >>> /project/abc-123
+
+        :param url_template: url with arguments that need replaced by vars
+        :param params: Dictionary lookup to replace url arguments with
+        :return: absolute url
+        """
+        encoded_params = dict()
+        url_args = re.findall(r'{(\w+)}', url_template)
+        for url_arg in url_args:
+            if url_arg in kwargs:
+                encoded_params[url_arg] = kwargs[url_arg]
+            elif hasattr(self, url_arg):
+                # Check if the argument is a class attribute (i.e. project_id)
+                encoded_params[url_arg] = getattr(self, url_arg)
+            else:
+                raise TypeError('Missing URL argument %s' % url_arg)
+        return url_template.format(**encoded_params)
+
+    def _make_api_request(self, endpoint, http_method, **kwargs):
+        """
+        Convenience method to make HTTP requests and handle responses/error codes
+
+        :param endpoint: URL to the resource
+        :param http_method: HTTP method, GET, POST, PUT, DELETE
+        :param kwargs: Params to pass to the body or url
+        """
+        # Split the params based on their type (url or jwt)
+        url = self._format_url(endpoint, **kwargs)
+
+        if kwargs.get('body_args'):
+            additional_claims = dict()
+            for body in kwargs.get('body_args'):
+                additional_claims[body] = kwargs[body]
+
+            payload = self.session.create_jwt_payload(**additional_claims)
+            jwt = '{payload}.{signature}'.format(payload=payload,
+                                                 signature=self.credentials.keypair.sign(payload))
+            self.session.service_request(http_method, url, body=jwt)
+        elif kwargs.get('body'):
+            # Replace the entire body with kwargs['body']
+            self.session.service_request(http_method, url,
+                                         body=kwargs.get('body'))
+        else:
+            self.session.service_request(http_method, url)
 
 
 def create_secret_key(output=None):
@@ -219,43 +355,3 @@ def _verify_jwt_claims(payload):
         return None
 
 
-def request_oneid_authentication(jwt, project_id):
-    """
-    Send a JWT signed by a server, device or user to oneID
-    for a two-factor authenticated message
-
-    :param jwt: Standard jwt with a header, claims and signature
-
-        *MUST HAVE SAME PAYLOAD THAT WILL BE SENT TO IoT DEVICE!*
-
-    :param project_id: project id
-    :return: JSON(payload, oneID Signature)
-    :raises: HTTPError
-    """
-    http_request = Request(AUTHENTICATION_ENDPOINT.format(project=project_id))
-    http_request.add_header('Content-Type', 'application/jwt')
-
-    return urlopen(http_request, jwt)
-
-
-def kdf(derivation_key, label, context='', key_size=128):
-    prf_output_size = 256
-    num_iterations = int(math.ceil((key_size+0.0)/prf_output_size))
-
-    if num_iterations > (math.pow(2, 32)-1):
-        return
-
-    prf_results = ['']
-    result = ''
-    params = ''
-    for i in range(1, num_iterations+1):
-        params = "%s%s%s%s%s%s" % (prf_results[i-1],
-                                   struct.pack('>I', i),
-                                   label, chr(0),
-                                   context,
-                                   struct.pack('>I', key_size))
-        digest = hmac.new(derivation_key, params, digestmod=hashlib.sha256).digest()
-        prf_results.append(digest)
-        result += digest
-        pass
-    return result[:key_size/8]

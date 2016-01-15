@@ -131,7 +131,6 @@ class Keypair(object):
         """
         return self._private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
-
     @classmethod
     def from_secret_pem(cls, key_bytes=None, path=None):
         """
@@ -146,7 +145,6 @@ class Keypair(object):
             with open(path, 'r') as pem_file:
                 secret_bytes = load_pem_private_key(pem_file.read(), None, default_backend())
                 return cls(secret_bytes=secret_bytes)
-
 
     @classmethod
     def from_secret_der(cls, der_key):

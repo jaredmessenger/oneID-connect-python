@@ -12,7 +12,7 @@ Before we begin, you will need to ``oneID-cli`` and a `oneID developer account`_
 
 .. code-block:: console
 
-   $ pip isntall oneid-cli
+   $ pip install oneid-cli
 
 
 
@@ -56,20 +56,16 @@ Let's create a new project.
 
    $ oneid-cli create-project --name "my epic project"
 
-You will be given two project keys. The first is a **SECRET** key.
+You will be given two keys. The first is your project **SECRET** key.
+The second is a oneID verification public key.
 
 .. danger::
   SAVE THE PROJECT SECRET KEY IN A SAFE PLACE.
   If you lose this key, you will lose your ability to send authenticated messages
   to your devices.
 
-The second project key will be given to all your edge devices and used
+The oneID verification public key will be given to all your edge devices and used
 to verify messages sent from a server.
-
-.. note::
-
-  The project public key can easily be re-generated as long as you
-  have the corresponding secret the key
 
 
 Server
@@ -99,6 +95,7 @@ server along with the project key that was generated when you first created the 
 
     $ scp /Users/me/secret/server_secret.pem ubuntu@10.1.2.3:/home/www/server_secret.pem
     $ scp /Users/me/secret/project_secret.pem ubuntu@10.1.2.3:/home/www/project_secret.pem
+    $ scp /Users/me/secret/oneid_public.pem ubuntu@10.1.2.3:/home/www/oneid_public.pem
 
 In python, we're just going to hardcode the path to these keys for quick access.
 
@@ -108,57 +105,41 @@ In python, we're just going to hardcode the path to these keys for quick access.
     import json
     import base64
 
-    from oneid.token import Token
-    from oneid.util import make_nonce
+    from oneid.keychain import Keypair, Credentials
+    from oneid.session import ServerSession
 
     # Secret keys we downloaded from oneID Developer Portal
     server_secret_key_path = '/home/www/server_key.pem'
     project_secret_key_path = '/home/www/project_key.pem'
 
-    nonce = make_nonce()
-    now = int(time.time())
+    # Unique Server id,
+    # we generated ours from uuid.uuid4()
+    server_id = 'c75a1dfe-b468-4820-9114-2c94c7e092dc'
 
-    server_id = 'unique_server_id'
+    server_key = Keypair.load_secret_pem(server_secret_key_path)
+    server_credentials = Credentials(server_id, server_key)
 
-    header = {'alg': 'ES256', 'typ': 'JWT'}
-    message = {'url': 'https://static.oneid.com/firmware/abc',
-               'checksum': 'abcd',
-               'iss': server_id,
-               'jti', nonce,
-               'nbf': now,
-               'exp': now + 60,
-              }
+    session = ServerSession(identity_credentials=server_key)
 
-    header_json = json.dumps(header)
-    message_json = json.dumps(message)
+    auth_response = session.authenticate.server(project_id='<insert project id>', message='Hello World')
 
-    payload = '{header}.{message}'.format(header=base64.b64encode(header_json),
-                                          message=base64.b64encode(message_json))
+    # Strip oneID's signature off the response
+    # *oneID responds with the same payload and signs with its secret key
+    oneid_signature = auth_response.split('.')[-1]
 
-    # Digitally sign using the server's secret key
-    server_token = keychain.Token.load_secret_pem(path=server_secret_key_path)
-    server_signature = server_token.sign(payload)
+    # WARNING, if you change anything in the claims here,
+    # verification will fail
+    alg, claims = auth_response.split('.')[:2]
+    payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
 
-    server_jwt = '{payload}.{signature}'.format(payload=payload,
-                                                signature=server_signature)
-
-    try:
-        # send server_jwt to oneID to receive oneID's signature
-        payload, oneid_signature = oneid.authenticate(server_jwt)
-    except Exception as e:
-        # If oneID doesn't authenticate this server, raise an Exception.
-        print('Failed to receive oneID\'s authentication')
-        print('Error %e' % e.description)
-        raise ValueError(e.description)
-
-    # Digitally sign the payload with the project token
-    project_token.load_secret_pem(project_secret_key_path)
+    # sign the payload with the project token
+    project_token = Keypair.load_secret_pem(project_secret_key_path)
     project_signature = project_token.sign(payload)
 
     # create a message with both signatures
-    authenticated_msg = {'message': payload,
-                         'project_sig': project_signature,
-                         'oneid_sig': oneid_signature}
+    authenticated_msg = {'payload': payload,
+                         'project_signature': project_signature,
+                         'oneid_signature': oneid_signature}
 
 The final step is to send the two-factor ``authenticated_msg``
 to the IoT device. You can use any network protocol you want,
@@ -244,14 +225,14 @@ by verifying the digital signatures.
 
    # Load tokens into memory
    oneID_key_path = '/home/root/oneid_pub.pem'
-   oneID_token = keychain.Token.from_public_key(path=oneID_key_path)
+   oneID_token = keychain.Keypair.from_public_key(path=oneID_key_path)
 
    project_key_path = '/home/root/project_pub.pem'
-   project_token = keychain.Token.from_public_key(path=project_key_path)
+   project_token = keychain.Keypair.from_public_key(path=project_key_path)
 
    # Verify Message
-   oneID_token.verify(payload.get('message'), payload.get('oneid_sig'))
-   project_token.verify(payload.get('message'), payload.get('project_sig'))
+   oneID_token.verify(payload.get('payload'), payload.get('oneid_signature'))
+   project_token.verify(payload.get('payload'), payload.get('project_signature'))
 
 If either of the tokens fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
 

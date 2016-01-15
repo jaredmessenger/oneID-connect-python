@@ -7,95 +7,85 @@ read the message after verifying the IoT device signature on a server.
 
 IoT Device
 ----------
-First we need to create a secret key pem file on the IoT Device.
-This secret key is used to sign messages.
-**IT'S A SECRET KEY THEREFORE MUST BE STORED IS IN A SECURE PLACE.**
+First we need to create **TWO** secret key pem files on the IoT Device.
+The first is used to authenticate the identity of the IoT device, the second
+is use to authenticate the application currently running. These are secret keys
+and are both used to sign messages.
 
-Generating a new key is exactly the same as in the "hello world" example, but
-this key needs to be stored securely on the IoT device.
+.. danger::
+    It's a **SECRET KEY** therefore it needs to be stored in a secure place.
+
+Generating a new key is exactly the same as in the :ref:`hello-world` example.
 
 .. code-block:: python
 
-    import oneid
+    from oneid import service
 
     # Save the secret key bytes to a secure file
-    secret_key_pem_path = '/home/me/device_secret_key.pem'
-    oneid.create_secret_key(output=secret_key_pem_path)
+    id_key_pem_path = '/home/me/id_secret_key.pem'
+    service.create_secret_key(output=id_key_pem_path)
+
+    app_key_pem_path = '/home/me/app_secret_key.pem'
+    service.create_scret_key(output=app_key_pem_path)
 
 
-
-Now that the IoT device has a secret key, the device can begin signing messages.
+Now that the IoT device its secret keys, the device can begin signing messages.
 
 There are many different ways you can send a message and it's matching
-signature to the server. For this example we're going to use `JWT`_.
-There are Python JWT libraries available, but for simplicity sake,
-we're just going to quickly implement a single JWT message.
+signature to the server. For this example we're going to use `JWT`_
+packaged as JSON since there are going to be two signatures instead of one.
 
 .. code-block:: python
 
-    import json
-    import time
-    import base64
+    from oneid.keychain import Keypair, Credentials
+    from oneid.session import DeviceSession
 
-    from oneid.token import Token
-    from oneid.util import make_nonce
-
-    nonce = make_nonce()
-    now = int(time.time())
+    # Subclass DeviceSession and override send_message
+    class MyIOTDeviceSession(DeviceSession):
+        def send_message(self, *args, **kwargs):
+            """
+            Override send_message to implement our own.
+            """
+            http_body = self.prepare_message()
+            self.make_http_request('POST',
+                                   'localhost:8080/telemetry_data',
+                                   body=http_body)
 
     # The message we want to send to the server
-    message = "Current temperature outside is 65"
+    message = "Hello World"
 
-    # Device name or device UUID is so the server can associate
-    # information to a specific device
-    device_id = 'unique_device_id'
-    device_name = 'my IoT device'
+    # device_id is a UUID the server can use to lookup this device
+    # randomly generated from uuid.uuid4()
+    device_id = '4dddaf21-2dd8-4439-9378-a869a6798f92'
 
-    # Specify the algorithm we're using
-    jwt_header = {'alg': 'ES256', 'typ':'JWT'}
+    # load the IoT Identity Keypair
+    id_keypair = Keypair.load_secret_pem(id_key_pem_path)
+    id_credentials = Credentials(device_id, id_keypair)
 
-    # For the claims, we can specify the message, a nonce in `jti`,
-    # an expiration time in `exp` and a "not before" time in `nbf`.
-    # The nonce and timestamps can be used to prevent replay attacks.
-    jwt_claims = {'message': message,
-                  'device': device_name,
-                  'iss': device_id,
-                  'jti', nonce,
-                  'nbf': now,
-                  'exp': now + 60,
-                 }
+    # Load the Application Keypair
+    app_keypair = Keypair.load_secret_pem(app_key_pem_path)
+    app_credentials = Credentials(device_id, app_keypair)
 
-    # Serialize the header and claims as json
-    header_json = json.dumps(jwt_header)
-    claims_json = json.dumps(jwt_claims)
-
-    payload = '{header}.{claims}'.format(header=base64.b64encode(header_json),
-                                         claims=base64.b64encode(claims_json))
-
-    # load the device oneID Token
-    device_token = Token()
-    device_token.load_secret_pem(secret_key_pem_path)
-
-    # sign the payload
-    signature = device_token.sign(payload)
-
-    # combine the payload and device signature into a jwt
-    jwt = '{payload}.{signature}'.format(payload=payload,
-                                         signature=signature)
-
-    print(jwt)
+    # Create a session and send the message.
+    session = MyIOTDeviceSession(id_credentials,
+                                 application_credentials=app_credentials)
+    session.send_message(message=message, device_id=device_id)
 
 The IoT device is now setup to send digitally signed messages. There is one final
 step we need to do before we move onto the server implementation.
-The IoT device needs to share it's public key and device name to the server.
-This is required for the sever to verify messages it receives from the IoT device.
+The IoT device needs to share it's public keys (public keys enable the server to verify the identity
+of the IoT device that sent the message).
 
 .. code-block:: python
 
-    # We're just going to print so we can copy and paste
-    print(device_name)
+    import base64
 
-    print(base64.b64encode(device_token.public_key_der))
+    print('ID PUBLIC VERIFIER:')
+    print(base64.b64encode(id_keypair.public_key_der))
+    print('APP PUBLIC VERIFIER:')
+    print(base64.b64encode(app_keypair.public_key_der))
+
+
 
 Server
 ------
@@ -107,15 +97,58 @@ that can receive an HTTP POST request.
 
 .. code-block:: python
 
+    import json
     from django.http import HttpResponse, HttpResponseBadRequest
 
-    from oneid.token import Token
+    from oneid.keychain import Keypair, Credentials
     from oneid.service import verify_jwt
+    from oneid.session import ServerSession
 
-    # device_lookup is the device_name and it's matching public key that was printed
+    # device_lookup is the device_id and it's matching public key that was printed
     # to the console in the last step, Production setup should store this in a database.
-    device_lookup = {'my IoT device': 'Bnz0tlass2x7LbZJuOTR04Od/MzbO9msHiSXSttLbJEDPC0PlRvso+u9c6+6Mq7AaONnd/nt1I0bQg6WXO31pw=='}
+    device_lookup = {'4dddaf21-2dd8-4439-9378-a869a6798f92':
+                     'Bnz0tlass2x7LbZJuOTR04Od/MzbO9msHiSXSttLbJEDPC0PlRvso'
+                     '+u9c6+6Mq7AaONnd/nt1I0bQg6WXO31pw=='}
 
+    class MyServerSession(ServerSession):
+        def verify_message(self, message):
+            # deserialize the JSON message
+            data = json.dumps(message)
+
+            payload = data.get('payload')
+            app_sig = data.get('app_signature')
+            id_sig = data.get('id_signature')
+
+            alg, claims = payload.split('.')
+
+            # deserialize claims to get device id
+            claims_data = base64.b64decode(claims)
+
+            device_id = claims_data.get('device_id')
+
+            # Even though we copy/pasted the key, we're
+            # still going to use the device_id and device_lookup for the key.
+            device_key = device_lookup.get(device_id)
+
+            # verify application signature first
+            device_app_verifier = Keypair.from_public_der(base64.b64decode(device_key))
+
+            # To verify the signature, we need the payload
+            # and the application signature
+            device_app_verifier.verify(payload, app_sig)
+
+            # to verify the identity, we'll use oneID
+            # build a jwt to verify identity with oneID
+            jwt = '{payload}.{signature}'.format(payload=payload,
+                                                 signature=id_sig)
+
+            self.authenticate.edge_device(identity=device_id, body=jwt)
+
+
+    # Create a new Server Session
+    session = MyServerSession()
+
+    # DJANGO REQUEST:
     def telemetry_data(request):
         """
         Receive JWT messages from IoT Devices and verify the device's signature
@@ -123,31 +156,15 @@ that can receive an HTTP POST request.
         if request.method != 'POST':
             return HttpResponseBadRequest('Error')
 
-        claims = verify_jwt(request.body)
+        try:
+            # Will raise exception if any verification fails
+            session.verify(request.body)
+        except Exception:
+            return HttpResponse(status=403)
 
-        if not claims:
-            return HttpResponseBadRequest('Error')
-
-        # given the device name, lookup it's matching public key
-        device_name = claims.get('device')
-        device_public_key = device_lookup.get(device_name)
-
-        if not device_public_key:
-            return HttpResponseBadRequest('Error')
-
-        # Load the public key into oneID Token
-        device_token = Token.from_public_der(device_public_key)
-
-        # now re-verify with the Token
-        if not verify_jwt(request.body, device_token)
-            return HttpResponseBadRequest('Error')
-
-        # The message and sender have been verified!
-        print(claims.get('message'))
         return HttpResponse('SUCCESS!')
 
 
-
-
+.. _hello-world:
 .. _JWT: https://tools.ietf.org/html/rfc7519
 .. _(Django is being used here): https://www.djangoproject.com
