@@ -16,7 +16,7 @@ class SessionBase(object):
     """
     Abstract class that should be subclassed
     """
-    def __init__(self, identity_credentials, application_credentials=None,
+    def __init__(self, identity_credentials=None, application_credentials=None,
                  project_credentials=None, oneid_credentials=None, config=None):
         """
 
@@ -115,7 +115,7 @@ class SessionBase(object):
 
 
 class DeviceSession(SessionBase):
-    def __init__(self, identity_credentials, application_credentials=None,
+    def __init__(self, identity_credentials=None, application_credentials=None,
                  project_credentials=None, oneid_credentials=None, config=None):
         super(DeviceSession, self).__init__(identity_credentials,
                                             application_credentials,
@@ -170,7 +170,7 @@ class ServerSession(SessionBase):
     """
     Enable Server to request two-factor Authentication from oneID
     """
-    def __init__(self, identity_credentials, application_credentials=None,
+    def __init__(self, identity_credentials=None, application_credentials=None,
                  project_credentials=None, oneid_credentials=None, config=None):
         super(ServerSession, self).__init__(identity_credentials,
                                             application_credentials,

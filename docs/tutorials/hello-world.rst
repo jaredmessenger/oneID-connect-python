@@ -18,18 +18,19 @@ Now we can create our "hello world" message and sign it.
 
 .. code-block:: python
 
-    from oneid.keychain import Token
+    from oneid.keychain import Keypair
+
     message = 'hello world'
-    my_token = Token()
-    my_token.load_secret_pem(secret_key_pem_path)
-    signature = my_token.sign(message)
+
+    my_key = Keypair.load_secret_pem(secret_key_pem_path)
+    signature = my_key.sign(message)
     print(signature)
 
 To verify the signature, we need to pass in the message and the signature back into the Token.
 
 ..  code-block:: python
 
-    my_token.verify(message, signature)
+    my_key.verify(message, signature)
 
 That's it!
 
