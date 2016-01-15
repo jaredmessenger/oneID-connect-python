@@ -206,7 +206,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'oneID-pydoc'
+htmlhelp_basename = 'oneID-Connect-doc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -228,8 +228,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'oneID-py.tex', u'oneID-py Documentation',
-   u'Jared Messenger', 'manual'),
+  (master_doc, 'oneID-Connect.tex', u'oneID-Connect Documentation',
+   u'oneID', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -258,7 +258,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'oneid-py', u'oneID-py Documentation',
+    (master_doc, 'oneid-connect', u'oneID-Connect Documentation',
      [author], 1)
 ]
 
@@ -272,8 +272,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'oneID-py', u'oneID-py Documentation',
-   author, 'oneID-py', 'One line description of project.',
+  (master_doc, 'oneID-Connect', u'oneID-Connect Documentation',
+   author, 'oneID-Connect', 'Security for IoT',
    'Miscellaneous'),
 ]
 
@@ -288,3 +288,5 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
+
+autodoc_member_order = 'bysource'
