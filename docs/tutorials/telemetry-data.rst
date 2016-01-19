@@ -59,11 +59,11 @@ packaged as JSON since there are going to be two signatures instead of one.
     device_id = '4dddaf21-2dd8-4439-9378-a869a6798f92'
 
     # load the IoT Identity Keypair
-    id_keypair = Keypair.load_secret_pem(id_key_pem_path)
+    id_keypair = Keypair.from_secret_pem(id_key_pem_path)
     id_credentials = Credentials(device_id, id_keypair)
 
     # Load the Application Keypair
-    app_keypair = Keypair.load_secret_pem(app_key_pem_path)
+    app_keypair = Keypair.from_secret_pem(app_key_pem_path)
     app_credentials = Credentials(device_id, app_keypair)
 
     # Create a session and send the message.

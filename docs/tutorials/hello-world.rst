@@ -22,7 +22,7 @@ Now we can create our "hello world" message and sign it.
 
     message = 'hello world'
 
-    my_key = Keypair.load_secret_pem(secret_key_pem_path)
+    my_key = Keypair.from_secret_pem(secret_key_pem_path)
     signature = my_key.sign(message)
     print(signature)
 
