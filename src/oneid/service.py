@@ -177,13 +177,13 @@ class BaseService(object):
             payload = self.session.create_jwt_payload(**additional_claims)
             jwt = '{payload}.{signature}'.format(payload=payload,
                                                  signature=self.credentials.keypair.sign(payload))
-            self.session.service_request(http_method, url, body=jwt)
+            return self.session.service_request(http_method, url, body=jwt)
         elif kwargs.get('body'):
             # Replace the entire body with kwargs['body']
-            self.session.service_request(http_method, url,
-                                         body=kwargs.get('body'))
+            return self.session.service_request(http_method, url,
+                                                body=kwargs.get('body'))
         else:
-            self.session.service_request(http_method, url)
+            return self.session.service_request(http_method, url)
 
 
 def create_secret_key(output=None):
