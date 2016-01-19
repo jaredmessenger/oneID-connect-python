@@ -153,7 +153,7 @@ class DeviceSession(SessionBase):
 
         :return: JSON with JWT payload and two signatures
         """
-        kwargs['iss'] = self.identity_credentials.keypair.id
+        kwargs['iss'] = self.identity_credentials.id
         payload = self.create_jwt_payload(**kwargs)
         identity_sig = self.identity_credentials.keypair.sign(payload)
         app_sig = self.app_credentials.keypair.sign(payload)
