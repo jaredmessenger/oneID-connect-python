@@ -1,7 +1,10 @@
 Installation for Intel Edison
 =============================
 First update to the latest `Yocto firmware update`_
-After you've flashed your Edison, we can setup the Intel Edison with pip.
+After you've flashed and configured your Intel Edison, we can setup the Intel Edison with pip.
+
+.. warning::
+   Please make sure that your Intel Edison is connected to the internet before continuing.
 
 
 * Open the base-feeds config file:

@@ -116,7 +116,7 @@ In python, we're just going to hardcode the path to these keys for quick access.
     # we generated ours from uuid.uuid4()
     server_id = 'c75a1dfe-b468-4820-9114-2c94c7e092dc'
 
-    server_key = Keypair.load_secret_pem(server_secret_key_path)
+    server_key = Keypair.from_secret_pem(server_secret_key_path)
     server_credentials = Credentials(server_id, server_key)
 
     session = ServerSession(identity_credentials=server_key)
@@ -133,7 +133,7 @@ In python, we're just going to hardcode the path to these keys for quick access.
     payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
 
     # sign the payload with the project token
-    project_token = Keypair.load_secret_pem(project_secret_key_path)
+    project_token = Keypair.from_secret_pem(project_secret_key_path)
     project_signature = project_token.sign(payload)
 
     # create a message with both signatures
