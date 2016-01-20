@@ -1,4 +1,5 @@
 import unittest
+import json
 import mock
 
 from cryptography.exceptions import InvalidSignature
@@ -62,6 +63,12 @@ class TestSession(unittest.TestCase):
                     'ZHQKg/odM76371cvsaMa/w0WtwZ5b8aNKAUGqS+YO+v6mP\n' \
                     '-----END PRIVATE KEY-----\n'
 
+    oneid_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCq' \
+                      'GSM49AwEHBG0wawIBAQQgm0PZgUme63i6fC/G\nmNSSsFliywt1eAOoW' \
+                      '6Dm/Wz0UrihRANCAATbU7pd0Vg/MYuGOW8E+kpfuo4ov/il\nI9HAi/w' \
+                      'HxHqlSxbzagczAUo9kNr4r2w3eTtvf4EuXaC9ZEC9xXCLRCpH\n' \
+                      '-----END PRIVATE KEY-----\n'
+
     def setUp(self):
         mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
         self.credentials = keychain.Credentials('me', mock_keypair)
@@ -84,6 +91,12 @@ class TestDeviceSession(unittest.TestCase):
         mock_app_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.app_key_bytes)
         self.app_credentials = keychain.Credentials('device-id', mock_app_keypair)
 
+        mock_proj_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.proj_key_bytes)
+        self.proj_credentials = keychain.Credentials('proj-id', mock_proj_keypair)
+
+        mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
+        self.oneid_credentials = keychain.Credentials('oneid-id', mock_oneid_keypair)
+
     def test_prepare_message(self):
         sess = session.DeviceSession(self.id_credentials,
                                      application_credentials=self.app_credentials)
@@ -93,8 +106,56 @@ class TestDeviceSession(unittest.TestCase):
         self.assertIn('app_signature', message)
         self.assertIn('id_signature', message)
 
-    def test_verify_message(self):
-        pass
+    def test_verify_missing_signature(self):
+        message_a = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                                'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                                'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                     'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                        'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                        '_7gUPIwmBQ'}
+
+        message_b = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                                'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                                'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                     'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
+                                          'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
+                                          'GGHWrwy_6KWMKv8ZkA'}
+
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials)
+
+        self.assertRaises(KeyError, sess.verify_message, json.dumps(message_a))
+        self.assertRaises(KeyError, sess.verify_message, json.dumps(message_b))
+
+    def test_verify_missing_payload(self):
+        message = {'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
+                                        'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
+                                        'GGHWrwy_6KWMKv8ZkA',
+                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                      '_7gUPIwmBQ'}
+
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials)
+
+        self.assertRaises(KeyError, sess.verify_message, json.dumps(message))
+
+    def test_verify_project_signature(self):
+        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                   'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
+                                        'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
+                                        'GGHWrwy_6KWMKv8ZkA',
+                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                      '_7gUPIwmBQ'}
+        data = json.dumps(message)
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials,
+                                     oneid_credentials=self.oneid_credentials,
+                                     project_credentials=self.proj_credentials)
+        sess.verify_message(data)
 
 
 class TestAdminSession(unittest.TestCase):
