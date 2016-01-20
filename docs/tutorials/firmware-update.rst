@@ -210,18 +210,25 @@ by verifying the digital signatures.
 
 .. code-block:: python
 
+   import base64
    from oneid import keychain
 
-   # Load tokens into memory
-   oneID_key_path = '/home/root/oneid_pub.pem'
-   oneID_token = keychain.Keypair.from_public_key(path=oneID_key_path)
+   # Verifier provided by oneID
+   oneid_verifier = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE21O6XdFYPzGLhjlvBPpK' \
+                    'X7qOKL/4pSPRwIv8B8R6pUsW82oHMwFKPZDa+K9sN3k7b3+BLl2gvWRA' \
+                    'vcVwi0QqRw=='
 
-   project_key_path = '/home/root/project_pub.pem'
-   project_token = keychain.Keypair.from_public_key(path=project_key_path)
+   project_verifier = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBhZyiOPVT35tPbLTxX' \
+                      'ERM84dDRPDmNbOkmm7kxnESi3r5aAl7Ew9PkYc6qK13Wet6ZNweWnP' \
+                      'Q3XfvD1h6c1KMw=='
+
+   oneid_keypair = keychain.Keypair.from_public_der(base64.b64decode(oneid_verifier))
+
+   project_keypair = keychain.Keypair.from_public_der(base64.b64decode(project_verifier))
 
    # Verify Message
-   oneID_token.verify(payload.get('payload'), payload.get('oneid_signature'))
-   project_token.verify(payload.get('payload'), payload.get('project_signature'))
+   oneid_keypair.verify(payload.get('payload'), payload.get('oneid_signature'))
+   project_keypair.verify(payload.get('payload'), payload.get('project_signature'))
 
 If either of the tokens fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
 
