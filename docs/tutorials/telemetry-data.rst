@@ -93,11 +93,23 @@ Setting up a server from scratch is out of scope for this example. We're going t
 that you have a basic Python web server `(Django is being used here)`_
 that can receive an HTTP POST request.
 
+The server also needs an identity. Just like with the IoT device, we need to create a keypair.
+
+.. code-block:: python
+
+    from oneid import service
+
+    # Save the secret key bytes to a secure file
+    id_key_pem_path = '/home/me/id_secret_key.pem'
+    service.create_secret_key(output=id_key_pem_path)
+
+
 .. rubric:: File - site_name/views.py
 
 .. code-block:: python
 
     import json
+    import base64
     from django.http import HttpResponse, HttpResponseBadRequest
 
     from oneid.keychain import Keypair, Credentials
@@ -145,9 +157,13 @@ that can receive an HTTP POST request.
             self.authenticate.edge_device(identity=device_id, body=jwt)
 
 
+    server_id_keypair = Keypair.from_secret_pem(path=id_key_pem_path)
+
+    # my_server_uuid if a uuid4, provided by oneID
+    server_credentials = Credentials(my_server_uuid, server_id_keypair)
 
     # Create a new Server Session
-    session = MyServerSession()
+    session = MyServerSession(server_credentials)
 
     # DJANGO REQUEST:
     def telemetry_data(request):
