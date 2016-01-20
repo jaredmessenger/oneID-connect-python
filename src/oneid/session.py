@@ -14,7 +14,12 @@ REQUIRED_JWT_HEADER_ELEMENTS = {
 
 class SessionBase(object):
     """
-    Abstract class that should be subclassed
+    Abstract Session Class
+
+    :ivar identity_credentials: oneID identity :class:`~oneid.keychain.Credentials`
+    :ivar application_credentials: unique app credentials :class:`~oneid.keychain.Credentials`
+    :ivar project_credentials: unique project credentials :class:`~oneid.keychain.Credentials`
+    :ivar oneid_credentials: oneID project credentials :class:`~oneid.keychain.Credentials`
     """
     def __init__(self, identity_credentials=None, application_credentials=None,
                  project_credentials=None, oneid_credentials=None, config=None):
@@ -121,7 +126,6 @@ class DeviceSession(SessionBase):
                                             application_credentials,
                                             project_credentials,
                                             oneid_credentials, config)
-        pass
 
     def verify_message(self, message):
         """
@@ -140,12 +144,12 @@ class DeviceSession(SessionBase):
             raise KeyError('missing project signature')
 
         # Verify the signatures
-        payload = data['payload']
+        payload = data['payload'].encode('utf-8')
         project_sig = data['project_signature']
         oneid_sig = data['oneid_signature']
 
-        self.project_credentials.verify(payload, project_sig)
-        self.oneid_credentials.verify(payload, oneid_sig)
+        self.project_credentials.keypair.verify(payload, project_sig)
+        self.oneid_credentials.keypair.verify(payload, oneid_sig)
 
     def prepare_message(self, **kwargs):
         """

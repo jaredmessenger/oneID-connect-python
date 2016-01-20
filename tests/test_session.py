@@ -1,8 +1,8 @@
-import json
-import base64
 import unittest
-
+import json
 import mock
+
+from cryptography.exceptions import InvalidSignature
 
 from oneid import session, service, utils, keychain
 
@@ -12,19 +12,30 @@ def mock_request(http_method, url, headers=None, data=None):
     """
     Mock an HTTP GET Request
     :param http_method: GET, PUT, POST, DELETE
-    :param url:
+    :param url: url that will be overridden
     :param headers: Dictionary of additional header params
     :param data: Body/payload
-    :return:
+    :return: :class:`~oneid.test_session.MockResponse`
     """
     class MockResponse:
         def __init__(self, response, status_code):
             self.content = response
             self.status_code = status_code
 
-    if url == 'https://api.oneid.com/project/test-proj-id/cosign_for_edge_device/edge-device-id':
-        # TODO, verify JWT
+    if url == 'https://myservice/my/endpoint':
         if http_method.lower() == 'post':
+            try:
+                jwt_header, jwt_claims, jwt_sig = data.split('.')
+            except IndexError:
+                return MockResponse('Bad Request', 400)
+
+            try:
+                key = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
+                payload = '{}.{}'.format(jwt_header, jwt_claims)
+                key.verify(payload, jwt_sig)
+            except InvalidSignature:
+                return MockResponse('Forbidden', 403)
+
             return MockResponse('hello world', 200)
         else:
             return MockResponse('Method Not Allowed', 405)
@@ -52,6 +63,12 @@ class TestSession(unittest.TestCase):
                     'ZHQKg/odM76371cvsaMa/w0WtwZ5b8aNKAUGqS+YO+v6mP\n' \
                     '-----END PRIVATE KEY-----\n'
 
+    oneid_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCq' \
+                      'GSM49AwEHBG0wawIBAQQgm0PZgUme63i6fC/G\nmNSSsFliywt1eAOoW' \
+                      '6Dm/Wz0UrihRANCAATbU7pd0Vg/MYuGOW8E+kpfuo4ov/il\nI9HAi/w' \
+                      'HxHqlSxbzagczAUo9kNr4r2w3eTtvf4EuXaC9ZEC9xXCLRCpH\n' \
+                      '-----END PRIVATE KEY-----\n'
+
     def setUp(self):
         mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
         self.credentials = keychain.Credentials('me', mock_keypair)
@@ -74,7 +91,13 @@ class TestDeviceSession(unittest.TestCase):
         mock_app_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.app_key_bytes)
         self.app_credentials = keychain.Credentials('device-id', mock_app_keypair)
 
-    def test_prepare_payload(self):
+        mock_proj_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.proj_key_bytes)
+        self.proj_credentials = keychain.Credentials('proj-id', mock_proj_keypair)
+
+        mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
+        self.oneid_credentials = keychain.Credentials('oneid-id', mock_oneid_keypair)
+
+    def test_prepare_message(self):
         sess = session.DeviceSession(self.id_credentials,
                                      application_credentials=self.app_credentials)
         message = sess.prepare_message()
@@ -83,6 +106,57 @@ class TestDeviceSession(unittest.TestCase):
         self.assertIn('app_signature', message)
         self.assertIn('id_signature', message)
 
+    def test_verify_missing_signature(self):
+        message_a = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                                'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                                'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                     'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                        'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                        '_7gUPIwmBQ'}
+
+        message_b = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                                'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                                'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                     'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
+                                          'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
+                                          'GGHWrwy_6KWMKv8ZkA'}
+
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials)
+
+        self.assertRaises(KeyError, sess.verify_message, json.dumps(message_a))
+        self.assertRaises(KeyError, sess.verify_message, json.dumps(message_b))
+
+    def test_verify_missing_payload(self):
+        message = {'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
+                                        'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
+                                        'GGHWrwy_6KWMKv8ZkA',
+                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                      '_7gUPIwmBQ'}
+
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials)
+
+        self.assertRaises(KeyError, sess.verify_message, json.dumps(message))
+
+    def test_verify_project_signature(self):
+        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                   'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
+                                        'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
+                                        'GGHWrwy_6KWMKv8ZkA',
+                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                      '_7gUPIwmBQ'}
+        data = json.dumps(message)
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials,
+                                     oneid_credentials=self.oneid_credentials,
+                                     project_credentials=self.proj_credentials)
+        sess.verify_message(data)
+
 
 class TestAdminSession(unittest.TestCase):
     def setUp(self):
@@ -90,7 +164,7 @@ class TestAdminSession(unittest.TestCase):
         self.credentials = keychain.Credentials('me', mock_keypair)
         self.custom_config = dict()
         global_config = self.custom_config['GLOBAL'] = dict()
-        global_config['base_url'] = 'https://myService'
+        global_config['base_url'] = 'https://myservice'
 
         test_service = self.custom_config['test_service'] = dict()
         test_method = test_service['test_method'] = dict()
@@ -120,7 +194,7 @@ class TestAdminSession(unittest.TestCase):
         sess = session.AdminSession(self.credentials,
                                     config=self.custom_config)
         response = sess.test_service.test_method(my_argument='Hello World')
-        self.assertEqual(response, 'Not Found')
+        self.assertEqual(response, 'hello world')
 
 
 
