@@ -145,6 +145,7 @@ that can receive an HTTP POST request.
             self.authenticate.edge_device(identity=device_id, body=jwt)
 
 
+
     # Create a new Server Session
     session = MyServerSession()
 
@@ -158,7 +159,7 @@ that can receive an HTTP POST request.
 
         try:
             # Will raise exception if any verification fails
-            session.verify(request.body)
+            session.verify_message(request.body)
         except Exception:
             return HttpResponse(status=403)
 
