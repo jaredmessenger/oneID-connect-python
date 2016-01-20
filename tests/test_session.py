@@ -1,8 +1,7 @@
-import json
-import base64
 import unittest
-
 import mock
+
+from cryptography.exceptions import InvalidSignature
 
 from oneid import session, service, utils, keychain
 
@@ -12,19 +11,30 @@ def mock_request(http_method, url, headers=None, data=None):
     """
     Mock an HTTP GET Request
     :param http_method: GET, PUT, POST, DELETE
-    :param url:
+    :param url: url that will be overridden
     :param headers: Dictionary of additional header params
     :param data: Body/payload
-    :return:
+    :return: :class:`~oneid.test_session.MockResponse`
     """
     class MockResponse:
         def __init__(self, response, status_code):
             self.content = response
             self.status_code = status_code
 
-    if url == 'https://api.oneid.com/project/test-proj-id/cosign_for_edge_device/edge-device-id':
-        # TODO, verify JWT
+    if url == 'https://myservice/my/endpoint':
         if http_method.lower() == 'post':
+            try:
+                jwt_header, jwt_claims, jwt_sig = data.split('.')
+            except IndexError:
+                return MockResponse('Bad Request', 400)
+
+            try:
+                key = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
+                payload = '{}.{}'.format(jwt_header, jwt_claims)
+                key.verify(payload, jwt_sig)
+            except InvalidSignature:
+                return MockResponse('Forbidden', 403)
+
             return MockResponse('hello world', 200)
         else:
             return MockResponse('Method Not Allowed', 405)
@@ -74,7 +84,7 @@ class TestDeviceSession(unittest.TestCase):
         mock_app_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.app_key_bytes)
         self.app_credentials = keychain.Credentials('device-id', mock_app_keypair)
 
-    def test_prepare_payload(self):
+    def test_prepare_message(self):
         sess = session.DeviceSession(self.id_credentials,
                                      application_credentials=self.app_credentials)
         message = sess.prepare_message()
@@ -83,6 +93,9 @@ class TestDeviceSession(unittest.TestCase):
         self.assertIn('app_signature', message)
         self.assertIn('id_signature', message)
 
+    def test_verify_message(self):
+        pass
+
 
 class TestAdminSession(unittest.TestCase):
     def setUp(self):
@@ -90,7 +103,7 @@ class TestAdminSession(unittest.TestCase):
         self.credentials = keychain.Credentials('me', mock_keypair)
         self.custom_config = dict()
         global_config = self.custom_config['GLOBAL'] = dict()
-        global_config['base_url'] = 'https://myService'
+        global_config['base_url'] = 'https://myservice'
 
         test_service = self.custom_config['test_service'] = dict()
         test_method = test_service['test_method'] = dict()
@@ -120,7 +133,7 @@ class TestAdminSession(unittest.TestCase):
         sess = session.AdminSession(self.credentials,
                                     config=self.custom_config)
         response = sess.test_service.test_method(my_argument='Hello World')
-        self.assertEqual(response, 'Not Found')
+        self.assertEqual(response, 'hello world')
 
 
 
