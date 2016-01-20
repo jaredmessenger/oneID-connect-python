@@ -191,8 +191,8 @@ by verifying the digital signatures.
    data = json.loads(authenticated_msg)
 
    # Verify Message
-   oneid_keypair.verify(data.get('payload'), data.get('oneid_signature'))
-   project_keypair.verify(data.get('payload'), data.get('project_signature'))
+   oneid_keypair.verify(data.get('payload').encode('utf-8'), data.get('oneid_signature'))
+   project_keypair.verify(data.get('payload').encode('utf-8'), data.get('project_signature'))
 
    header_b64, claims_b64 = data.get('payload')
 
