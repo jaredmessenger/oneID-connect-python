@@ -125,7 +125,7 @@ In python, we're just going to hardcode the path to these keys for quick access.
                             project_credentials=project_credentials)
 
     # Request authentication from oneID
-    auth_response = session.authenticate.server(message='Hello World')
+    auth_response = session.authenticate.server(message='http://mycompany.com/firmwareupdate')
 
     # Use oneID's authentication response to make the authenticated message
     authenticated_msg = session.prepare_message(oneid_response=auth_response)
@@ -148,7 +148,7 @@ Now we need to copy over the oneID verifier key, project verifier key and the
 new device secret key. The oneID verifier key can be downloaded
 from the `oneID developer console`_.
 
-You can print out your project verifier key adding a snippet to the previous code
+You can print out your project verifier key by adding a snippet to the previous code
 example.
 
 .. code-block:: python
@@ -157,7 +157,7 @@ example.
    project_verifier = base64.b64encode(project_key.public_key_der)
    print(project_verifier)
 
-If you can SSH into your IoT device, you can do the same thing as we did with the server
+If you can SSH into your IoT device, you can do the same thing that we did with the server
 and copy over the device identity secret key. Since the oneID and project verifier keys
 are static for all devices in a project, we can hard them in code.
 
@@ -171,6 +171,7 @@ by verifying the digital signatures.
 .. code-block:: python
 
    import base64
+   import json
    from oneid import keychain
 
    # Verifier provided by oneID
@@ -186,11 +187,23 @@ by verifying the digital signatures.
 
    project_keypair = keychain.Keypair.from_public_der(base64.b64decode(project_verifier))
 
-   # Verify Message
-   oneid_keypair.verify(payload.get('payload'), payload.get('oneid_signature'))
-   project_keypair.verify(payload.get('payload'), payload.get('project_signature'))
+   # Deserialize the authenticated message
+   data = json.loads(authenticated_msg)
 
-If either of the tokens fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
+   # Verify Message
+   oneid_keypair.verify(data.get('payload'), data.get('oneid_signature'))
+   project_keypair.verify(data.get('payload'), data.get('project_signature'))
+
+   header_b64, claims_b64 = data.get('payload')
+
+   # Deserialize the claims
+   claims_data = base64.b64decode(claims_b64)
+   claims = json.loads(claims_data)
+
+   # Finally print the authenticated message
+   print(claims.get('message'))
+
+If either of the keypairs fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
 
 
 .. _oneID developer account: https://developer.oneid.com/console
