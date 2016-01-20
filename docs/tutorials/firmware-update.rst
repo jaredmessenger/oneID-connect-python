@@ -101,10 +101,6 @@ In python, we're just going to hardcode the path to these keys for quick access.
 
 .. code-block:: python
 
-    import time
-    import json
-    import base64
-
     from oneid.keychain import Keypair, Credentials
     from oneid.session import ServerSession
 
@@ -112,34 +108,27 @@ In python, we're just going to hardcode the path to these keys for quick access.
     server_secret_key_path = '/home/www/server_key.pem'
     project_secret_key_path = '/home/www/project_key.pem'
 
-    # Unique Server id,
+    # Unique Server ID,
     # we generated ours from uuid.uuid4()
-    server_id = 'c75a1dfe-b468-4820-9114-2c94c7e092dc'
+    SERVER_ID = 'c75a1dfe-b468-4820-9114-2c94c7e092dc'
 
-    server_key = Keypair.from_secret_pem(server_secret_key_path)
-    server_credentials = Credentials(server_id, server_key)
+    # Unique Project ID provided by oneID
+    PROJECT_ID = 'd47fedd0-729f-4941-b4bd-2ec4fe0f9ca9'
 
-    session = ServerSession(identity_credentials=server_key)
+    server_key = Keypair.from_secret_pem(path=server_secret_key_path)
+    server_credentials = Credentials(SERVER_ID, server_key)
 
-    auth_response = session.authenticate.server(project_id='<insert project id>', message='Hello World')
+    project_key = Keypair.from_secret_pem(path=project_secret_key_path)
+    project_credentials = Credentials(PROJECT_ID, project_key)
 
-    # Strip oneID's signature off the response
-    # *oneID responds with the same payload and signs with its secret key
-    oneid_signature = auth_response.split('.')[-1]
+    session = ServerSession(identity_credentials=server_credentials
+                            project_credentials=project_credentials)
 
-    # WARNING, if you change anything in the claims here,
-    # verification will fail
-    alg, claims = auth_response.split('.')[:2]
-    payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
+    # Request authentication from oneID
+    auth_response = session.authenticate.server(message='Hello World')
 
-    # sign the payload with the project token
-    project_token = Keypair.from_secret_pem(project_secret_key_path)
-    project_signature = project_token.sign(payload)
-
-    # create a message with both signatures
-    authenticated_msg = {'payload': payload,
-                         'project_signature': project_signature,
-                         'oneid_signature': oneid_signature}
+    # Use oneID's authentication response to make the authenticated message
+    authenticated_msg = session.prepare_message(oneid_response=auth_response)
 
 The final step is to send the two-factor ``authenticated_msg``
 to the IoT device. You can use any network protocol you want,
@@ -221,18 +210,25 @@ by verifying the digital signatures.
 
 .. code-block:: python
 
+   import base64
    from oneid import keychain
 
-   # Load tokens into memory
-   oneID_key_path = '/home/root/oneid_pub.pem'
-   oneID_token = keychain.Keypair.from_public_key(path=oneID_key_path)
+   # Verifier provided by oneID
+   oneid_verifier = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE21O6XdFYPzGLhjlvBPpK' \
+                    'X7qOKL/4pSPRwIv8B8R6pUsW82oHMwFKPZDa+K9sN3k7b3+BLl2gvWRA' \
+                    'vcVwi0QqRw=='
 
-   project_key_path = '/home/root/project_pub.pem'
-   project_token = keychain.Keypair.from_public_key(path=project_key_path)
+   project_verifier = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBhZyiOPVT35tPbLTxX' \
+                      'ERM84dDRPDmNbOkmm7kxnESi3r5aAl7Ew9PkYc6qK13Wet6ZNweWnP' \
+                      'Q3XfvD1h6c1KMw=='
+
+   oneid_keypair = keychain.Keypair.from_public_der(base64.b64decode(oneid_verifier))
+
+   project_keypair = keychain.Keypair.from_public_der(base64.b64decode(project_verifier))
 
    # Verify Message
-   oneID_token.verify(payload.get('payload'), payload.get('oneid_signature'))
-   project_token.verify(payload.get('payload'), payload.get('project_signature'))
+   oneid_keypair.verify(payload.get('payload'), payload.get('oneid_signature'))
+   project_keypair.verify(payload.get('payload'), payload.get('project_signature'))
 
 If either of the tokens fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
 

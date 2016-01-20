@@ -4,7 +4,7 @@ GLOBAL:
 
 revoke:
   edge_device:
-    endpoint: /co-sign/project/{project_id}/edge_device/{edge_device_id}/revoke
+    endpoint: /projects/{project_id}/edge_device/{edge_device_id}/revoke
     method: POST
     help: Revoke an edge device.
     arguments:
@@ -13,7 +13,7 @@ revoke:
         required: True
 
   server:
-    endpoint: /co-sign/project/{project_id}/server/{server_id}/revoke
+    endpoint: /projects/{project_id}/server/{server_id}/revoke
     method: POST
     help: Revoke a server
     arguments:

@@ -6,4 +6,5 @@ API
 
     keypair
     service
+    session
     utils
