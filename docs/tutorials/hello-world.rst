@@ -22,7 +22,7 @@ Now we can create our "hello world" message and sign it.
 
     message = 'hello world'
 
-    my_key = Keypair.from_secret_pem(secret_key_pem_path)
+    my_key = Keypair.from_secret_pem(path=secret_key_pem_path)
     signature = my_key.sign(message)
     print(signature)
 
@@ -39,8 +39,8 @@ something else like ``hello universe``.
 
 .. code-block:: python
 
-    my_token.verify('hello universe', signature)
     # raises InvalidSignature
+    my_key.verify('hello universe', signature)
 
 
 
