@@ -7,4 +7,5 @@ API
     keypair
     service
     session
+    auth
     utils
