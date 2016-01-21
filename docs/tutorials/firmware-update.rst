@@ -121,11 +121,11 @@ In python, we're just going to hardcode the path to these keys for quick access.
     project_key = Keypair.from_secret_pem(path=project_secret_key_path)
     project_credentials = Credentials(PROJECT_ID, project_key)
 
-    session = ServerSession(identity_credentials=server_credentials
+    session = ServerSession(identity_credentials=server_credentials,
                             project_credentials=project_credentials)
 
     # Request authentication from oneID
-    auth_response = session.authenticate.server(message='Hello World')
+    auth_response = session.authenticate.server(message='http://mycompany.com/firmwareupdate')
 
     # Use oneID's authentication response to make the authenticated message
     authenticated_msg = session.prepare_message(oneid_response=auth_response)
@@ -133,35 +133,6 @@ In python, we're just going to hardcode the path to these keys for quick access.
 The final step is to send the two-factor ``authenticated_msg``
 to the IoT device. You can use any network protocol you want,
 or a messaging protocol such as MQTT, RabbitMQ, Redis etc.
-
-I'm a fan of Redis, and Redis is incredibly simple to use.
-Setting up a Redis server is out of the scope of this tutorial,
-but you can use this `Redis Quick Start`_.
-
-After installing Redis, you need to start the Redis server
-
-.. code-block:: console
-
-    $ redis-server
-
-
-You will also need the Redis Python client library.
-
-.. code-block:: console
-
-    $ pip install redis
-
-With redis now installed, let's create a publisher and publish the ``authenticated_msg``
-
-.. code-block:: python
-
-    import redis
-
-    # create a redis connection to send the
-    redis_conn = redis.StrictRedis(host='localhost', port=6379, db=0)
-
-    # publish authenticated message to the IoT device
-    redis_conn.publish('edge_device:firmware_update', json.dumps(authenticated_msg))
 
 
 IoT Device
@@ -173,37 +144,26 @@ Just like we did with the server we need to start with provisioning our IoT devi
     $ oneid-cli provision --name "my edge device" --type device
 
 
-Now we need to copy over the oneID public key, project public key and the
-new device secret key. The oneID public key can be downloaded
+Now we need to copy over the oneID verifier key, project verifier key and the
+new device secret key. The oneID verifier key can be downloaded
 from the `oneID developer console`_.
 
-If you can SSH into your IoT device, you can do the same thing as we did with the server.
+You can print out your project verifier key by adding a snippet to the previous code
+example.
+
+.. code-block:: python
+
+   import base64
+   project_verifier = base64.b64encode(project_key.public_key_der)
+   print(project_verifier)
+
+If you can SSH into your IoT device, you can do the same thing that we did with the server
+and copy over the device identity secret key. Since the oneID and project verifier keys
+are static for all devices in a project, we can hard them in code.
 
 .. code-block:: console
 
     $ scp /Users/me/secret/device_secret.pem edison@10.1.2.3:/home/root/device_secret.pem
-    $ scp /Users/me/secret/oneid_pub.pem edison@10.1.2.3:/home/root/oneid_pub.pem
-    $ scp /Users/me/secret/project_pub.pem edison@10.1.2.3:/home/root/project_pub.pem
-
-In the final server step, we published a message through Redis.
-To receive that message, we're going to setup our IoT device as a subscriber.
-
-.. code-block:: python
-
-   import redis
-
-    # create a redis connection to send the
-    redis_conn = redis.StrictRedis(host='<redis ip address>', port=6379, db=0)
-    redis_sub = redis_conn.pubsub(ignore_subscribe_messages=True)
-    redis_sub.subscribe('edge_device:firmware_update')
-
-    # Get the message published
-    payload = redis_sub.get_message()
-
-
-.. note::
-    ``redis_sub.get_message()`` only returns a single message. If you want the device to
-    listen forever for new messages, you will need to wrap ``get_message()`` in a ``while True`` block.
 
 Now that we have the message that was sent to the IoT device, let's check the message's authenticity
 by verifying the digital signatures.
@@ -211,6 +171,7 @@ by verifying the digital signatures.
 .. code-block:: python
 
    import base64
+   import json
    from oneid import keychain
 
    # Verifier provided by oneID
@@ -226,11 +187,23 @@ by verifying the digital signatures.
 
    project_keypair = keychain.Keypair.from_public_der(base64.b64decode(project_verifier))
 
-   # Verify Message
-   oneid_keypair.verify(payload.get('payload'), payload.get('oneid_signature'))
-   project_keypair.verify(payload.get('payload'), payload.get('project_signature'))
+   # Deserialize the authenticated message
+   data = json.loads(authenticated_msg)
 
-If either of the tokens fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
+   # Verify Message
+   oneid_keypair.verify(data.get('payload').encode('utf-8'), data.get('oneid_signature'))
+   project_keypair.verify(data.get('payload').encode('utf-8'), data.get('project_signature'))
+
+   header_b64, claims_b64 = data.get('payload')
+
+   # Deserialize the claims
+   claims_data = base64.b64decode(claims_b64)
+   claims = json.loads(claims_data)
+
+   # Finally print the authenticated message
+   print(claims.get('message'))
+
+If either of the keypairs fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
 
 
 .. _oneID developer account: https://developer.oneid.com/console
