@@ -12,11 +12,6 @@ import re
 import time
 import logging
 
-try:
-    from urllib.request import urlopen, Request
-except ImportError:
-    from urllib2 import urlopen, Request
-
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -353,5 +348,3 @@ def _verify_jwt_claims(payload):
     except:
         logger.debug('unknown error verifying payload: %s', payload, exc_info=True)
         return None
-
-
