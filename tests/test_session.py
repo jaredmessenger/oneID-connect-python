@@ -158,6 +158,43 @@ class TestDeviceSession(unittest.TestCase):
         sess.verify_message(data)
 
 
+class TestServer(unittest.TestCase):
+    def setUp(self):
+        mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
+        self.server_credentials = keychain.Credentials('server', mock_keypair)
+
+        mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
+        self.oneid_credentials = keychain.Credentials('oneID', mock_oneid_keypair)
+
+        mock_project_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.proj_key_bytes)
+        self.project_credentials = keychain.Credentials('proj', mock_project_keypair)
+
+    def test_prepare_message(self):
+        oneid_response = 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJpc3Mi' \
+                         'OiAib25lSUQiLCAianRpIjogIjAwMTIwMTYtMDEtMjBUMjE6N' \
+                         'TE6MDZabDJ5dHlXIn0=.eEhASqRrKWPhzKVmSmeFZY5tGeTgo' \
+                         'nZS45qwnz0_4VJb_qM_kNnQqLp96mPZLUtKHVIeJqA77SqlVx' \
+                         'WsOB1J4g'
+
+        sess = session.ServerSession(identity_credentials=self.server_credentials,
+                                     oneid_credentials=self.oneid_credentials,
+                                     project_credentials=self.project_credentials)
+
+        authenticated_data = sess.prepare_message(oneid_response=oneid_response)
+
+        authenticated_msg = json.loads(authenticated_data)
+
+        self.assertIn('payload', authenticated_msg)
+        self.assertIn('project_signature', authenticated_msg)
+        self.assertIn('oneid_signature', authenticated_msg)
+
+        self.project_credentials.keypair.verify(authenticated_msg['payload'].encode('utf-8'),
+                                                authenticated_msg['project_signature'])
+
+
+
+
+
 class TestAdminSession(unittest.TestCase):
     def setUp(self):
         mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)

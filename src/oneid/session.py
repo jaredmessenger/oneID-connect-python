@@ -243,7 +243,7 @@ class ServerSession(SessionBase):
         alg, claims, oneid_sig = oneid_response.split('.')
         payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
 
-        project_sig = self.project_credentials.sign(payload)
+        project_sig = self.project_credentials.keypair.sign(payload)
 
         return json.dumps({'payload': payload,
                            'project_signature': project_sig,
