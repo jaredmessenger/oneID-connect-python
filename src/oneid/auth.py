@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 
 """
 Provides functionality to verify signatures from oneID users,

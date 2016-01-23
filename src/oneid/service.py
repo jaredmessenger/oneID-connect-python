@@ -4,6 +4,7 @@
 Provides useful functions for interacting with the oneID API, including creation of
 keys, JWTs, etc.
 """
+from __future__ import unicode_literals
 
 import os
 import json
@@ -26,8 +27,6 @@ logger = logging.getLogger(__name__)
 
 AUTHENTICATION_ENDPOINT = 'http://developer-portal.oneid.com/api/{project}/authenticate'
 
-
-ONEID_TYPES = utils.enum(DEVICE=0, SERVER=1, USER=2)
 
 B64_URLSAFE_RE = '[0-9a-zA-Z-_]+'
 JWT_RE = r'^{b64}\.{b64}\.{b64}$'.format(b64=B64_URLSAFE_RE)
@@ -63,10 +62,10 @@ class ServiceCreator(object):
         base_url = kwargs.get('base_url', '')
 
         methods = dict()
-        for method_name, method_values in service_model.iteritems():
+        for method_name, method_values in service_model.items():
             required_jwt = list()
             all_jwt = list()
-            for arg_name, arg_properties in method_values['arguments'].iteritems():
+            for arg_name, arg_properties in method_values['arguments'].items():
                 if arg_properties['location'] == 'jwt':
                     all_jwt.append(arg_name)
                     if arg_properties['required'] is True:

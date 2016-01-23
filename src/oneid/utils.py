@@ -1,6 +1,7 @@
 """
 Helpful utility functions
 """
+from __future__ import unicode_literals
 
 import random
 import time
@@ -11,20 +12,6 @@ from dateutil import parser, tz
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-def enum(**items):
-    """
-    Create an enumeration
-
-    :Example:
-
-        Animals = enum(DOG=0, CAT=1)
-
-    :param items: Dict() of keys and integer values
-    :return: Enum instance
-    """
-    return type('Enum', (), items)
 
 
 def base64url_encode(msg):
@@ -70,7 +57,7 @@ def make_nonce():
 
     random_str = ''
     random_chr = random.SystemRandom()
-    for i in xrange(0, 6):
+    for i in range(0, 6):
         random_str += random_chr.choice(valid_chars)
 
     return '001{time_str}{random_str}'.format(time_str=time_component,

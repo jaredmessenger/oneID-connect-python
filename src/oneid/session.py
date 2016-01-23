@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import os
 import yaml
 import json
@@ -323,5 +325,3 @@ class AdminSession(SessionBase):
 
     def verify_message(self, *args, **kwargs):
         raise NotImplementedError
-
-
