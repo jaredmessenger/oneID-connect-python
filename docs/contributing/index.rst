@@ -11,17 +11,18 @@ collaboration tools exclusively for managing development.
 
 Getting Started
 ---------------
-Working on ``oneID-connect`` requires additional packages, `nose2`_ and `Sphinx`_.
+Working on ``oneID-connect`` requires additional packages, `nose2`_, `mock`_ and `Sphinx`_.
 
 .. code-block:: console
 
-  $ pip install nose2
+  $ pip install nose2 mock
   $ pip install Sphinx
 
 
 You are now ready to run tests and build documentation.
 
 .. _nose2: http://nose2.readthedocs.org/en/latest/index.html
+.. _mock: https://github.com/testing-cabal/mock
 .. _Sphinx: http://sphinx-doc.org/index.html
 
 Running Tests
@@ -107,8 +108,3 @@ Contributing Changes
 
 .. _PEP 8: https://www.python.org/dev/peps/pep-0008/
 .. _PEP 287: https://www.python.org/dev/peps/pep-0287/
-
-
-
-
-
