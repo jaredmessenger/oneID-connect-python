@@ -25,6 +25,9 @@ from cryptography.hazmat.primitives.serialization \
 
 from . import utils
 
+KEYSIZE = 256
+KEYSIZE_BYTES = (KEYSIZE // 8)
+
 
 class Credentials(object):
     """
@@ -145,11 +148,11 @@ class Keypair(object):
         :return: :class:`~oneid.keychain.Keypair` instance
         """
         if key_bytes:
-            secret_bytes = load_pem_private_key(key_bytes, None, default_backend())
+            secret_bytes = load_pem_private_key(utils.to_bytes(key_bytes), None, default_backend())
             return cls(secret_bytes=secret_bytes)
 
         if os.path.exists(path):
-            with open(path, 'r') as pem_file:
+            with open(path, 'rb') as pem_file:
                 secret_bytes = load_pem_private_key(pem_file.read(), None, default_backend())
                 return cls(secret_bytes=secret_bytes)
 
@@ -198,8 +201,8 @@ class Keypair(object):
         :return:
         """
         raw_sig = utils.base64url_decode(signature)
-        sig_r_bin = raw_sig[:len(raw_sig)/2]
-        sig_s_bin = raw_sig[len(raw_sig)/2:]
+        sig_r_bin = raw_sig[:len(raw_sig)//2]
+        sig_s_bin = raw_sig[len(raw_sig)//2:]
 
         sig_r = unpack_bytes(sig_r_bin)
         sig_s = unpack_bytes(sig_s_bin)
@@ -207,7 +210,7 @@ class Keypair(object):
         sig = encode_dss_signature(sig_r, sig_s)
         signer = self.public_key.verifier(sig,
                                           ec.ECDSA(hashes.SHA256()))
-        signer.update(payload)
+        signer.update(utils.to_bytes(payload))
         return signer.verify()
 
     def sign(self, payload):
@@ -218,13 +221,15 @@ class Keypair(object):
         """
         signer = self._private_key.signer(ec.ECDSA(hashes.SHA256()))
 
-        signer.update(payload)
+        signer.update(utils.to_bytes(payload))
         signature = signer.finalize()
 
         r, s = decode_dss_signature(signature)
 
-        b64_signature = utils.base64url_encode('{r}{s}'.format(r=int2bytes(r),
-                                                               s=int2bytes(s)))
+        br = int2bytes(r, KEYSIZE_BYTES)
+        bs = int2bytes(s, KEYSIZE_BYTES)
+        str_sig = br + bs
+        b64_signature = utils.base64url_encode(str_sig)
         return b64_signature
 
     @property
@@ -268,9 +273,9 @@ class Keypair(object):
         raise NotImplementedError
 
 
-def int2bytes(i):
+def int2bytes(i, numbytes=None):
     hex_string = '%x' % i
-    n = len(hex_string)
+    n = numbytes and (numbytes*2) or len(hex_string)
     return binascii.unhexlify(hex_string.zfill(n + (n & 1)))
 
 

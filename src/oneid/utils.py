@@ -2,6 +2,7 @@
 Helpful utility functions
 """
 from __future__ import unicode_literals
+import six
 
 import random
 import time
@@ -14,14 +15,24 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def to_bytes(data):
+    return data.encode('utf-8') if isinstance(data, unicode if six.PY2 else str) else data
+
+
+def to_string(data):
+    return data if isinstance(data, six.string_types) else data.decode('utf-8')
+
+
 def base64url_encode(msg):
     """
     Default b64_encode adds padding, jwt spec removes padding
     :param input:
+    :type input: string or bytes
     :return: base64 en
+    :rtype: bytes
     """
-    encoded_input = base64.urlsafe_b64encode(msg)
-    stripped_input = encoded_input.replace('=', '')
+    encoded_input = base64.urlsafe_b64encode(to_bytes(msg))
+    stripped_input = to_bytes(to_string(encoded_input).replace('=', ''))
     return stripped_input
 
 
@@ -31,13 +42,16 @@ def base64url_decode(msg):
     base64url_decode, adds them back in before trying to base64 decode the message
 
     :param msg: URL safe base64 message
-    :return: plain text message
+    :type msg: string or bytes
+    :return: decoded data
+    :rtype: bytes
     """
-    pad = len(msg) % 4
+    bmsg = to_bytes(msg)
+    pad = len(bmsg) % 4
     if pad > 0:
-        msg += '=' * (4 - pad)
+        bmsg += b'=' * (4 - pad)
 
-    return base64.urlsafe_b64decode(str(msg))
+    return base64.urlsafe_b64decode(bmsg)
 
 
 def make_nonce():
