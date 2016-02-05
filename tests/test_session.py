@@ -188,11 +188,8 @@ class TestServer(unittest.TestCase):
         self.assertIn('project_signature', authenticated_msg)
         self.assertIn('oneid_signature', authenticated_msg)
 
-        self.project_credentials.keypair.verify(authenticated_msg['payload'].encode('utf-8'),
+        self.project_credentials.keypair.verify(authenticated_msg['payload'],
                                                 authenticated_msg['project_signature'])
-
-
-
 
 
 class TestAdminSession(unittest.TestCase):
@@ -232,16 +229,3 @@ class TestAdminSession(unittest.TestCase):
                                     config=self.custom_config)
         response = sess.test_service.test_method(my_argument='Hello World')
         self.assertEqual(response, 'hello world')
-
-
-
-
-
-
-
-
-
-
-
-
-

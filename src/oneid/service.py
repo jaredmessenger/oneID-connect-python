@@ -4,6 +4,7 @@
 Provides useful functions for interacting with the oneID API, including creation of
 keys, JWTs, etc.
 """
+from __future__ import unicode_literals
 
 import os
 import json
@@ -25,9 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 AUTHENTICATION_ENDPOINT = 'http://developer-portal.oneid.com/api/{project}/authenticate'
-
-
-ONEID_TYPES = utils.enum(DEVICE=0, SERVER=1, USER=2)
 
 B64_URLSAFE_RE = '[0-9a-zA-Z-_]+'
 JWT_RE = r'^{b64}\.{b64}\.{b64}$'.format(b64=B64_URLSAFE_RE)
@@ -63,10 +61,10 @@ class ServiceCreator(object):
         base_url = kwargs.get('base_url', '')
 
         methods = dict()
-        for method_name, method_values in service_model.iteritems():
+        for method_name, method_values in service_model.items():
             required_jwt = list()
             all_jwt = list()
-            for arg_name, arg_properties in method_values['arguments'].iteritems():
+            for arg_name, arg_properties in method_values['arguments'].items():
                 if arg_properties['location'] == 'jwt':
                     all_jwt.append(arg_name)
                     if arg_properties['required'] is True:
@@ -171,7 +169,7 @@ class BaseService(object):
 
             payload = self.session.create_jwt_payload(**additional_claims)
             jwt = '{payload}.{signature}'.format(payload=payload,
-                                                 signature=self.credentials.keypair.sign(payload))
+                                                 signature=utils.to_string(self.credentials.keypair.sign(payload)))
             return self.session.service_request(http_method, url, body=jwt)
         elif kwargs.get('body'):
             # Replace the entire body with kwargs['body']
@@ -193,7 +191,7 @@ def create_secret_key(output=None):
 
     # Save the secret key bytes to a secure file
     if output and os.path.exists(os.path.dirname(output)):
-        with open(output, 'w') as f:
+        with open(output, 'wb') as f:
             f.write(secret_key_bytes)
 
     return Keypair.from_secret_pem(key_bytes=secret_key_bytes)
@@ -274,10 +272,11 @@ def verify_jwt(jwt, verification_keypair=None):  # TODO: require verification_to
     Convert a JWT back to it's claims, if validated by the :py:class:`~oneid.keychain.Token`
 
     :param jwt: JWT to verify and convert
-    :type jwt: str
+    :type jwt: str or bytes
     :param verification_token: :py:class:`~oneid.keychain.Token` to verify the JWT
     :type param: :py:class:`~oneid.keychain.Token`
     """
+    jwt = utils.to_string(jwt)
     if not re.match(JWT_RE, jwt):
         logger.debug('Given JWT doesnt match pattern: %s', jwt)
         return False
@@ -288,16 +287,16 @@ def verify_jwt(jwt, verification_keypair=None):  # TODO: require verification_to
         logger.debug('invalid message, error splitting/decoding: %s', jwt, exc_info=True)
         return False
 
-    if not _verify_jwt_header(header.decode('utf-8')):
+    if not _verify_jwt_header(utils.to_string(header)):
         return False
 
-    message = _verify_jwt_claims(payload)
+    message = _verify_jwt_claims(utils.to_string(payload))
 
     if message is None:
         logger.debug('no message: %s', message)
         return False
 
-    if verification_keypair and not verification_keypair.verify(*(str(jwt).rsplit('.', 1))):
+    if verification_keypair and not verification_keypair.verify(*(jwt.rsplit('.', 1))):
         logger.debug('invalid signature, header=%s, message=%s', header, message)
         return False
 

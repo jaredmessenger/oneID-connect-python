@@ -1,8 +1,11 @@
+from __future__ import unicode_literals
+
 import os
 import yaml
 import json
 import base64
 from requests import request
+from codecs import open
 
 from . import service, utils, exceptions
 
@@ -43,7 +46,7 @@ class SessionBase(object):
         :return: dict()
         """
         # Load params from configuration file
-        with open(config_file, mode='r') as config:
+        with open(config_file, mode='r', encoding='utf-8') as config:
             params = yaml.safe_load(config)
             return params
 
@@ -71,7 +74,7 @@ class SessionBase(object):
         :param claims: JWT Claims Dict()
         :return: JWT payload (*no signature)
         """
-        alg_b64 = base64.b64encode(json.dumps(REQUIRED_JWT_HEADER_ELEMENTS))
+        alg_b64 = utils.to_string(base64.b64encode(utils.to_bytes(json.dumps(REQUIRED_JWT_HEADER_ELEMENTS))))
 
         # Required claims
         jti = utils.make_nonce()
@@ -79,8 +82,7 @@ class SessionBase(object):
         claims = {'jti': jti}
         claims.update(kwargs)
 
-        claims_serialized = json.dumps(claims)
-        claims_b64 = base64.b64encode(claims_serialized)
+        claims_b64 = utils.to_string(base64.b64encode(utils.to_bytes(json.dumps(claims))))
 
         payload = '{alg_b64}.{claims_b64}'.format(alg_b64=alg_b64,
                                                   claims_b64=claims_b64)
@@ -159,8 +161,8 @@ class DeviceSession(SessionBase):
         """
         kwargs['iss'] = self.identity_credentials.id
         payload = self.create_jwt_payload(**kwargs)
-        identity_sig = self.identity_credentials.keypair.sign(payload)
-        app_sig = self.app_credentials.keypair.sign(payload)
+        identity_sig = utils.to_string(self.identity_credentials.keypair.sign(payload))
+        app_sig = utils.to_string(self.app_credentials.keypair.sign(payload))
 
         return json.dumps({'payload': payload,
                            'id_signature': identity_sig,
@@ -243,7 +245,7 @@ class ServerSession(SessionBase):
         alg, claims, oneid_sig = oneid_response.split('.')
         payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
 
-        project_sig = self.project_credentials.keypair.sign(payload)
+        project_sig = utils.to_string(self.project_credentials.keypair.sign(payload))
 
         return json.dumps({'payload': payload,
                            'project_signature': project_sig,
@@ -323,5 +325,3 @@ class AdminSession(SessionBase):
 
     def verify_message(self, *args, **kwargs):
         raise NotImplementedError
-
-
