@@ -210,14 +210,14 @@ def encrypt_attr_value(attr_value, aes_key):
     """
     Convenience method to encrypt attribute properties
 
-    :param attr_value: plain text that you want encrypted
+    :param attr_value: plain text (string or bytes) that you want encrypted
     :param aes_key: symmetric key to encrypt attribute value with
     :return: Dictionary with base64 encoded cipher text and base 64 encoded iv
     """
     iv = os.urandom(16)
     cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv), backend=default_backend())
     encryptor = cipher_alg.encryptor()
-    encr_value = encryptor.update(attr_value) + encryptor.finalize()
+    encr_value = encryptor.update(utils.to_bytes(attr_value)) + encryptor.finalize()
     encr_value_b64 = base64.b64encode(encr_value + encryptor.tag)
     iv_b64 = base64.b64encode(iv)
     return {'cipher': 'aes', 'mode': 'gcm', 'ts': 128, 'iv': iv_b64, 'ct': encr_value_b64}
@@ -229,7 +229,7 @@ def decrypt_attr_value(attr_ct, aes_key):
 
     :param attr_ct: Dictionary with base64 encoded cipher text and base 64 encoded iv
     :param aes_key: symmetric key to decrypt attribute value with
-    :return: Dictionary with base64 encoded cipher text and base 64 encoded iv
+    :return: plaintext bytes
     """
     if not isinstance(attr_ct, dict) or attr_ct.get('cipher', 'aes') != 'aes' or attr_ct.get('mode', 'gcm') != 'gcm':
         raise ValueError('invalid encrypted attribute')
@@ -255,14 +255,14 @@ def make_jwt(claims, authorized_keypair):
     alg = {'alg': 'ES256',
            'typ': 'JWT'}
     alg_serialized = json.dumps(alg)
-    alg_b64 = utils.base64url_encode(alg_serialized)
+    alg_b64 = utils.to_string(utils.base64url_encode(alg_serialized))
 
     claims_serialized = json.dumps(claims)
-    claims_b64 = utils.base64url_encode(claims_serialized)
+    claims_b64 = utils.to_string(utils.base64url_encode(claims_serialized))
 
     payload = '{alg}.{claims}'.format(alg=alg_b64, claims=claims_b64)
 
-    signature = authorized_keypair.sign(payload)
+    signature = utils.to_string(authorized_keypair.sign(payload))
 
     return '{payload}.{sig}'.format(payload=payload, sig=signature)
 
