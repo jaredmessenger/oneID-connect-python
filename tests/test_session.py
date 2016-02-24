@@ -74,12 +74,11 @@ class TestSession(unittest.TestCase):
         self.credentials = keychain.Credentials('me', mock_keypair)
 
     def test_verify_jwt(self):
-        valid_jwt = 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJpc3MiOiBudW' \
-                    'xsLCAidGVzdF9jbGFpbSI6ICJ0ZXN0X3ZhbHVlIiwgImp0aSI6ICIwM' \
-                    'DEyMDE2LTAxLTEzVDAyOjEzOjIxWlZkeG1JciJ9.WiJ_5yTc29VcWLe' \
-                    'MiuLE5eP0QUJop_tJT-QBFA2-9rrqjSy7SZ7ADVDkqmd8ZwWvl7J_wf' \
-                    'a3GLeNQNkxIJwhSw'
-
+        valid_jwt = (
+            'eyJ0eXAiOiAiSldUIiwgImFsZyI6ICJFUzI1NiJ9.'
+            'eyJoZWxsbyI6ICJ0aGVyZSFcdWQ4M2RcdWRlNDgifQ.'
+            'A6NR-J8ecI-5p8LXWxpNtKPduzh9CPbwlIeaa5fvZ8kJIEk_O5b-6Gno06IFUf-xRTxm3DRecNamxSfCdgg3hg'
+        )
         service.verify_jwt(valid_jwt, self.credentials.keypair)
 
 
