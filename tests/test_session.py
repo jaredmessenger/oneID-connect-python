@@ -69,6 +69,24 @@ class TestSession(unittest.TestCase):
                       'HxHqlSxbzagczAUo9kNr4r2w3eTtvf4EuXaC9ZEC9xXCLRCpH\n' \
                       '-----END PRIVATE KEY-----\n'
 
+    reset_key_A_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
+                        'CqGSM49AwEHBG0wawIBAQQgoipfyjtZXMp5pV/V\naTMQQXg3BX78u' \
+                        'MgM7ePLw7y740ShRANCAATcaPOHf92vDJqOxvny/4BqQhuThy3o\nb' \
+                        'zqDKss/lRiEd3hRpEcnFkA1/5J7YD27d+Rwce8c3Mv5Fw+0EvTEfxv' \
+                        'j\n-----END PRIVATE KEY-----\n'
+
+    reset_key_B_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
+                        'CqGSM49AwEHBG0wawIBAQQgGnaOW5frHzPyaxsq\noL5AylzMQR3n+' \
+                        'noiYg6CuUUaNlWhRANCAATk2/T8BgFV9DkdvRZvquFzXII+zuKG\nQ' \
+                        '9asmASeRMfM3/HNmMGil82P7PTCGsuumbWhX+Ty0G3eZNE0FbLAK3o' \
+                        '+\n-----END PRIVATE KEY-----\n'
+
+    reset_key_C_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
+                        'CqGSM49AwEHBG0wawIBAQQgySmjxLPOGxKxSqaT\nGGcjTJqbYGgFs' \
+                        'njBTsZ+p4GJ9bqhRANCAASk4ktRaOwSpyB6yQ4kCbhsV0KH9eZs\n+' \
+                        's7j/IlzbF0J0uwWeVYZifZxMS4dde/mWBvapkTa+oTiSEQoAwuVe4t' \
+                        '3\n-----END PRIVATE KEY-----\n'
+
     def setUp(self):
         mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
         self.credentials = keychain.Credentials('me', mock_keypair)
@@ -96,6 +114,15 @@ class TestDeviceSession(unittest.TestCase):
 
         mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
         self.oneid_credentials = keychain.Credentials('oneid-id', mock_oneid_keypair)
+
+        mock_resetA_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.reset_key_A_bytes)
+        self.resetA_credentials = keychain.Credentials('resetA-id', mock_resetA_keypair)
+
+        mock_resetB_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.reset_key_B_bytes)
+        self.resetB_credentials = keychain.Credentials('resetB-id', mock_resetB_keypair)
+
+        mock_resetC_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.reset_key_C_bytes)
+        self.resetC_credentials = keychain.Credentials('resetC-id', mock_resetC_keypair)
 
     def test_prepare_message(self):
         sess = session.DeviceSession(self.id_credentials,
@@ -157,6 +184,119 @@ class TestDeviceSession(unittest.TestCase):
                                      project_credentials=self.proj_credentials)
         sess.verify_message(data)
 
+    def test_verify_rekey_signatures(self):
+        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                      '_7gUPIwmBQ',
+                   'rekey_signatures': ['X7z82ZQ0y1zC6w2x-vK4Aq1JwS4RwA3utwcb'
+                                        '7vIktEVXbd1e_4QAkJc3g1f00KlajIbZnvDd'
+                                        'r4lKsePIR6s-VA',
+                                        'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
+                                        '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
+                                        'Y6VrQoLzN_Vesg',
+                                        'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ'
+                                        'TkFtb5s6hdX3SuqMgijcQjuzUW6VU8K_8VGpm'
+                                        'C0yiDZKSPUXtQ',]
+
+                   }
+        data = json.dumps(message)
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials,
+                                     oneid_credentials=self.oneid_credentials,
+                                     project_credentials=self.proj_credentials)
+
+        sess.verify_message(data, rekey_credentials=[self.resetA_credentials,
+                                                     self.resetB_credentials,
+                                                     self.resetC_credentials])
+
+    def test_invalid_rekey_signature(self):
+        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                      '_7gUPIwmBQ',
+                   'rekey_signatures': ['JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ'
+                                        'TkFtb5s6hdX3SuqMgijcQjuzUW6VU8K_8VGp'
+                                        'mC0yiDZKSPUXtQ',
+                                        'qj0IBKcJTiqBTxoP193wZ5hkwgaCDnLswSBB'
+                                        'sYXwQ0iOISmofCeZBYA_ZEo-F2k5AbBrvGBu'
+                                        'ErG4FhkeQELYZw',
+                                        'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
+                                        '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
+                                        'Y6VrQoLzN_Vesg',]
+
+                   }
+
+        data = json.dumps(message)
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials,
+                                     oneid_credentials=self.oneid_credentials,
+                                     project_credentials=self.proj_credentials)
+
+        self.assertRaises(InvalidSignature, sess.verify_message, json.dumps(message),
+                          rekey_credentials=[self.resetA_credentials,
+                                             self.resetB_credentials,
+                                             self.resetC_credentials])
+
+    def test_missing_rekey_signature(self):
+        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                      '_7gUPIwmBQ',
+                   'rekey_signatures': ['X7z82ZQ0y1zC6w2x-vK4Aq1JwS4RwA3utwcb'
+                                        '7vIktEVXbd1e_4QAkJc3g1f00KlajIbZnvDd'
+                                        'r4lKsePIR6s-VA',
+                                        'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
+                                        '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
+                                        'Y6VrQoLzN_Vesg',
+                                        'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ']
+
+                   }
+
+        data = json.dumps(message)
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials,
+                                     oneid_credentials=self.oneid_credentials,
+                                     project_credentials=self.proj_credentials)
+
+        self.assertRaises(InvalidSignature, sess.verify_message, json.dumps(message),
+                          rekey_credentials=[self.resetA_credentials,
+                                             self.resetB_credentials,
+                                             self.resetC_credentials])
+
+    def test_missing_rekey_credential(self):
+        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
+                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
+                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
+                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
+                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
+                                      '_7gUPIwmBQ',
+                   'rekey_signatures': ['X7z82ZQ0y1zC6w2x-vK4Aq1JwS4RwA3utwcb'
+                                        '7vIktEVXbd1e_4QAkJc3g1f00KlajIbZnvDd'
+                                        'r4lKsePIR6s-VA',
+                                        'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
+                                        '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
+                                        'Y6VrQoLzN_Vesg',
+                                        'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ'
+                                        'TkFtb5s6hdX3SuqMgijcQjuzUW6VU8K_8VGpm'
+                                        'C0yiDZKSPUXtQ',]
+
+                   }
+        data = json.dumps(message)
+        sess = session.DeviceSession(self.id_credentials,
+                                     application_credentials=self.app_credentials,
+                                     oneid_credentials=self.oneid_credentials,
+                                     project_credentials=self.proj_credentials)
+
+        self.assertRaises(InvalidSignature, sess.verify_message, json.dumps(message),
+                          rekey_credentials=[self.resetA_credentials,
+                                             self.resetB_credentials])
 
 class TestServer(unittest.TestCase):
     def setUp(self):

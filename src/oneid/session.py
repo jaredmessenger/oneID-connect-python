@@ -145,7 +145,7 @@ class DeviceSession(SessionBase):
             raise KeyError('missing payload')
         if not data.get('oneid_signature'):
             raise KeyError('missing oneID Digital Signature')
-        if not data.get('project_signature') and not data.get('reset_signatures'):
+        if not data.get('project_signature') and not data.get('rekey_signatures'):
             raise KeyError('missing project signature')
 
         # Verify the signatures
