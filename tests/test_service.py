@@ -2,7 +2,7 @@ import unittest
 import mock
 
 
-from oneid import service, keychain
+from oneid import service, keychain, utils
 
 
 class TestBaseService(unittest.TestCase):
@@ -30,9 +30,26 @@ class TestBaseService(unittest.TestCase):
         url = '/{test_unknown}/end_test'
         self.assertRaises(TypeError, self.service._format_url, url)
 
+    def test_string_encryption(self):
+        key = service.create_aes_key()
+        data = 'Hello, Im Data'
+        edata = service.encrypt_attr_value(data, key)
+        self.assertEqual(utils.to_string(service.decrypt_attr_value(edata, key)), data)
+
+    def test_bytes_encryption(self):
+        key = service.create_aes_key()
+        data = b'Hello, Im Data'
+        edata = service.encrypt_attr_value(data, key)
+        self.assertEqual(service.decrypt_attr_value(edata, key), data)
+
+    def test_jwt(self):
+        keypair = service.create_secret_key()
+        data = {'d': 'Hello, Im Data'}
+        jwt = service.make_jwt(data, keypair)
+        self.assertEqual(service.verify_jwt(jwt, keypair), data)
+
 
 class TestCreateToken(unittest.TestCase):
     def test_token(self):
         kp = service.create_secret_key()
         self.assertIsInstance(kp, keychain.Keypair)
-
