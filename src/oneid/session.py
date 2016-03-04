@@ -7,6 +7,8 @@ import base64
 from requests import request
 from codecs import open
 
+from cryptography.exceptions import  InvalidSignature
+
 from . import service, utils, exceptions
 
 REQUIRED_JWT_HEADER_ELEMENTS = {
@@ -129,11 +131,12 @@ class DeviceSession(SessionBase):
                                             project_credentials,
                                             oneid_credentials, config)
 
-    def verify_message(self, message):
+    def verify_message(self, message, rekey_credentials=None):
         """
         Verify a message received from the server
 
         :param message: JSON formatted message with two signatures
+        :param rekey_credentials: List of :class:`~oneid.keychain.Credential`
         :return: verified message
         :raises: oneid.exceptions.InvalidAuthentication
         """
@@ -142,15 +145,37 @@ class DeviceSession(SessionBase):
             raise KeyError('missing payload')
         if not data.get('oneid_signature'):
             raise KeyError('missing oneID Digital Signature')
-        if not data.get('project_signature'):
+        if not data.get('project_signature') and not data.get('rekey_signatures'):
             raise KeyError('missing project signature')
 
         # Verify the signatures
         payload = data['payload'].encode('utf-8')
-        project_sig = data['project_signature']
+
         oneid_sig = data['oneid_signature']
 
-        self.project_credentials.keypair.verify(payload, project_sig)
+        project_sig = data.get('project_signature')
+        rekey_sigs = data.get('rekey_signatures', list())
+
+        if project_sig:
+            self.project_credentials.keypair.verify(payload, project_sig)
+
+        elif len(rekey_sigs) == 3 and len(rekey_credentials) == 3:
+            valid_sig_count = 0
+            # Iterate over all the possible signature/credential permutations
+            for sig in rekey_sigs:
+                for cred in rekey_credentials:
+                    try:
+                        cred.keypair.verify(payload, sig)
+                    except InvalidSignature:
+                        pass
+                    else:
+                        valid_sig_count += 1
+                        break
+            if valid_sig_count != 3:
+                raise InvalidSignature('One or more signatures were invalid')
+        else:
+            raise InvalidSignature('Missing project signature')
+
         self.oneid_credentials.keypair.verify(payload, oneid_sig)
 
     def prepare_message(self, **kwargs):
@@ -234,7 +259,7 @@ class ServerSession(SessionBase):
         """
         Build message that has two-factor signatures
 
-        :param kwargs: Claims to add to the JWT
+        :param kwargs: oneid_response to parse and optionally rekey_credentials.
         :return: Content to be sent to devices
         """
         if self.project_credentials is None:
@@ -244,6 +269,17 @@ class ServerSession(SessionBase):
         # split the JWT Token
         alg, claims, oneid_sig = oneid_response.split('.')
         payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
+
+        reset_credentials = kwargs.get('rekey_credentials', list())
+        if len(reset_credentials) == 3:
+            reset_sigs = list()
+            for cred in reset_credentials:
+                sig = utils.to_string(cred.keypair.sign(payload))
+                reset_sigs.append(sig)
+
+            return json.dumps({'payload': payload,
+                               'oneid_signature': oneid_sig,
+                               'reset_signatures': reset_sigs})
 
         project_sig = utils.to_string(self.project_credentials.keypair.sign(payload))
 
