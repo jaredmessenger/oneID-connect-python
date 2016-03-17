@@ -4,7 +4,7 @@ import mock
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, utils, keychain
+from oneid import session, service, keychain
 
 
 # Patch Requests
@@ -114,13 +114,19 @@ class TestDeviceSession(unittest.TestCase):
         mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
         self.oneid_credentials = keychain.Credentials('oneid-id', mock_oneid_keypair)
 
-        mock_resetA_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.reset_key_A_bytes)
+        mock_resetA_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.reset_key_A_bytes
+        )
         self.resetA_credentials = keychain.Credentials('resetA-id', mock_resetA_keypair)
 
-        mock_resetB_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.reset_key_B_bytes)
+        mock_resetB_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.reset_key_B_bytes
+        )
         self.resetB_credentials = keychain.Credentials('resetB-id', mock_resetB_keypair)
 
-        mock_resetC_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.reset_key_C_bytes)
+        mock_resetC_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.reset_key_C_bytes
+        )
         self.resetC_credentials = keychain.Credentials('resetC-id', mock_resetC_keypair)
 
     def test_prepare_message(self):
@@ -198,7 +204,8 @@ class TestDeviceSession(unittest.TestCase):
                                         'Y6VrQoLzN_Vesg',
                                         'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ'
                                         'TkFtb5s6hdX3SuqMgijcQjuzUW6VU8K_8VGpm'
-                                        'C0yiDZKSPUXtQ',]
+                                        'C0yiDZKSPUXtQ',
+                                        ]
 
                    }
         data = json.dumps(message)
@@ -226,11 +233,11 @@ class TestDeviceSession(unittest.TestCase):
                                         'ErG4FhkeQELYZw',
                                         'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
                                         '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
-                                        'Y6VrQoLzN_Vesg',]
+                                        'Y6VrQoLzN_Vesg',
+                                        ]
 
                    }
 
-        data = json.dumps(message)
         sess = session.DeviceSession(self.id_credentials,
                                      application_credentials=self.app_credentials,
                                      oneid_credentials=self.oneid_credentials,
@@ -254,11 +261,11 @@ class TestDeviceSession(unittest.TestCase):
                                         'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
                                         '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
                                         'Y6VrQoLzN_Vesg',
-                                        'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ']
+                                        'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ',
+                                        ]
 
                    }
 
-        data = json.dumps(message)
         sess = session.DeviceSession(self.id_credentials,
                                      application_credentials=self.app_credentials,
                                      oneid_credentials=self.oneid_credentials,
@@ -284,10 +291,10 @@ class TestDeviceSession(unittest.TestCase):
                                         'Y6VrQoLzN_Vesg',
                                         'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ'
                                         'TkFtb5s6hdX3SuqMgijcQjuzUW6VU8K_8VGpm'
-                                        'C0yiDZKSPUXtQ',]
+                                        'C0yiDZKSPUXtQ',
+                                        ]
 
                    }
-        data = json.dumps(message)
         sess = session.DeviceSession(self.id_credentials,
                                      application_credentials=self.app_credentials,
                                      oneid_credentials=self.oneid_credentials,
@@ -297,6 +304,7 @@ class TestDeviceSession(unittest.TestCase):
                           rekey_credentials=[self.resetA_credentials,
                                              self.resetB_credentials])
 
+
 class TestServer(unittest.TestCase):
     def setUp(self):
         mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
@@ -305,7 +313,9 @@ class TestServer(unittest.TestCase):
         mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
         self.oneid_credentials = keychain.Credentials('oneID', mock_oneid_keypair)
 
-        mock_project_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.proj_key_bytes)
+        mock_project_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.proj_key_bytes
+        )
         self.project_credentials = keychain.Credentials('proj', mock_project_keypair)
 
     def test_prepare_message(self):

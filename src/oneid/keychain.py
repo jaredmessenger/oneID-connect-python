@@ -11,8 +11,8 @@ import base64
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey, \
-    EllipticCurvePrivateKey, EllipticCurvePublicNumbers, SECP256R1
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, \
+    EllipticCurvePublicNumbers, SECP256R1
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, \
     load_pem_public_key, load_der_private_key, load_der_public_key
@@ -71,7 +71,11 @@ class ProjectCredentials(Credentials):
         :returns: Dictionary with cipher text and encryption params.
         """
         iv = os.urandom(16)
-        cipher_alg = Cipher(algorithms.AES(self._encryption_key), modes.GCM(iv), backend=default_backend())
+        cipher_alg = Cipher(
+            algorithms.AES(self._encryption_key),
+            modes.GCM(iv),
+            backend=default_backend()
+        )
         encryptor = cipher_alg.encryptor()
         encr_value = encryptor.update(plain_text) + encryptor.finalize()
         encr_value_b64 = base64.b64encode(encr_value + encryptor.tag)
@@ -127,7 +131,9 @@ class Keypair(object):
 
         :return: DER encoded private key
         """
-        secret_der = self._private_key.private_bytes(Encoding.DER, PrivateFormat.PKCS8, NoEncryption())
+        secret_der = self._private_key.private_bytes(
+            Encoding.DER, PrivateFormat.PKCS8, NoEncryption()
+        )
 
         return secret_der
 
@@ -197,7 +203,8 @@ class Keypair(object):
         :param y: long y coordinate of ecc curve
         :return:
         """
-        self._public_key = EllipticCurvePublicNumbers(x, y, SECP256R1()).public_key(default_backend())
+        numbers = EllipticCurvePublicNumbers(x, y, SECP256R1())
+        self._public_key = numbers.public_key(default_backend())
 
     @classmethod
     def from_public_der(cls, public_key):

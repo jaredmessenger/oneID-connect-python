@@ -168,8 +168,10 @@ class BaseService(object):
                 additional_claims[body] = kwargs[body]
 
             payload = self.session.create_jwt_payload(**additional_claims)
-            jwt = '{payload}.{signature}'.format(payload=payload,
-                                                 signature=utils.to_string(self.credentials.keypair.sign(payload)))
+            jwt = '{payload}.{signature}'.format(
+                payload=payload,
+                signature=utils.to_string(self.credentials.keypair.sign(payload))
+            )
             return self.session.service_request(http_method, url, body=jwt)
         elif kwargs.get('body'):
             # Replace the entire body with kwargs['body']
@@ -231,14 +233,22 @@ def decrypt_attr_value(attr_ct, aes_key):
     :param aes_key: symmetric key to decrypt attribute value with
     :return: plaintext bytes
     """
-    if not isinstance(attr_ct, dict) or attr_ct.get('cipher', 'aes') != 'aes' or attr_ct.get('mode', 'gcm') != 'gcm':
+    if not isinstance(attr_ct, dict) or \
+            attr_ct.get('cipher', 'aes') != 'aes' or \
+            attr_ct.get('mode', 'gcm') != 'gcm':
+
         raise ValueError('invalid encrypted attribute')
+
     iv = base64.b64decode(attr_ct['iv'])
     tag_ct = base64.b64decode(attr_ct['ct'])
     ts = attr_ct.get('ts', 64) // 8
     tag = tag_ct[-ts:]
     ct = tag_ct[:-ts]
-    cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv, tag, min_tag_length=8), backend=default_backend())
+    cipher_alg = Cipher(
+        algorithms.AES(aes_key),
+        modes.GCM(iv, tag, min_tag_length=8),
+        backend=default_backend()
+    )
     decryptor = cipher_alg.decryptor()
     return decryptor.update(ct) + decryptor.finalize()
 
