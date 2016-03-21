@@ -76,7 +76,7 @@ class SessionBase(object):
         :param claims: JWT Claims Dict()
         :return: JWT payload (*no signature)
         """
-        alg_b64 = utils.to_string(base64.b64encode(utils.to_bytes(json.dumps(REQUIRED_JWT_HEADER_ELEMENTS))))
+        alg_b64 = utils.to_string(utils.base64url_encode(utils.to_bytes(json.dumps(REQUIRED_JWT_HEADER_ELEMENTS))))
 
         # Required claims
         jti = utils.make_nonce()
@@ -84,7 +84,7 @@ class SessionBase(object):
         claims = {'jti': jti}
         claims.update(kwargs)
 
-        claims_b64 = utils.to_string(base64.b64encode(utils.to_bytes(json.dumps(claims))))
+        claims_b64 = utils.to_string(utils.base64url_encode(utils.to_bytes(json.dumps(claims))))
 
         payload = '{alg_b64}.{claims_b64}'.format(alg_b64=alg_b64,
                                                   claims_b64=claims_b64)
