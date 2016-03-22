@@ -10,5 +10,6 @@ six~=1.10.0
 nose2>=0.6.0
 tox>=2.3.1
 mock>=1.3.0
+coverage>=4.0.3
 
 # additional requirements in benchmark/requirements.txt
