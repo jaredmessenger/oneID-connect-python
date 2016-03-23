@@ -267,7 +267,7 @@ def make_jwt(claims, authorized_keypair):
     alg_serialized = json.dumps(alg)
     alg_b64 = utils.to_string(utils.base64url_encode(alg_serialized))
 
-    claims_serialized = json.dumps(claims)
+    claims_serialized = json.dumps(claims) if isinstance(claims, dict) else claims
     claims_b64 = utils.to_string(utils.base64url_encode(claims_serialized))
 
     payload = '{alg}.{claims}'.format(alg=alg_b64, claims=claims_b64)
