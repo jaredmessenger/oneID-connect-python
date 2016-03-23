@@ -306,9 +306,12 @@ def verify_jwt(jwt, verification_keypair=None):  # TODO: require verification_to
         logger.debug('no message: %s', message)
         return False
 
-    if verification_keypair and not verification_keypair.verify(*(jwt.rsplit('.', 1))):
-        logger.debug('invalid signature, header=%s, message=%s', header, message)
-        return False
+    if verification_keypair:
+        try:
+            verification_keypair.verify(*(jwt.rsplit('.', 1)))
+        except:
+            logger.debug('invalid signature, header=%s, message=%s', header, message)
+            return False
 
     return message
 
