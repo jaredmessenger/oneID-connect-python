@@ -1,10 +1,15 @@
-import unittest
 import json
+import logging
+
+import unittest
 import mock
+import sure  # noqa
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, keychain
+from oneid import session, service, keychain, exceptions
+
+logger = logging.getLogger(__name__)
 
 
 # Patch Requests
@@ -37,14 +42,20 @@ def mock_request(http_method, url, headers=None, data=None):
                 return MockResponse('Forbidden', 403)
 
             return MockResponse('hello world', 200)
+        elif http_method.lower() == 'get':
+            return MockResponse('tested', 200)
         else:
             return MockResponse('Method Not Allowed', 405)
 
+    elif url == 'https://myservice/unauthorized':
+        return MockResponse('Forbidden', 403)
+
     else:
+        logger.debug('url not found: %s', url)
         return MockResponse('Not Found', 404)
 
 
-class TestSession(unittest.TestCase):
+class TestSession(object):
     id_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGS'\
                    'M49AwEHBG0wawIBAQQgbKk/yDq5mmGkhs7b\nLNiCMv25GvwYZNtS5JYUh' \
                    '4OLafKhRANCAAQ0B+TfNujp2TNlw+zufTwzZSv3yU9U\ncbl+Ip5kv8Snp' \
@@ -87,17 +98,18 @@ class TestSession(unittest.TestCase):
                         's7j/IlzbF0J0uwWeVYZifZxMS4dde/mWBvapkTa+oTiSEQoAwuVe4t' \
                         '3\n-----END PRIVATE KEY-----\n'
 
-    def setUp(self):
-        mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
-        self.credentials = keychain.Credentials('me', mock_keypair)
 
-    def test_verify_jwt(self):
-        valid_jwt = (
-            'eyJ0eXAiOiAiSldUIiwgImFsZyI6ICJFUzI1NiJ9.'
-            'eyJoZWxsbyI6ICJ0aGVyZSFcdWQ4M2RcdWRlNDgifQ.'
-            'A6NR-J8ecI-5p8LXWxpNtKPduzh9CPbwlIeaa5fvZ8kJIEk_O5b-6Gno06IFUf-xRTxm3DRecNamxSfCdgg3hg'
-        )
-        service.verify_jwt(valid_jwt, self.credentials.keypair)
+class TestBaseSession(unittest.TestCase):
+    def test_invalid_method(self):
+        base = session.SessionBase()
+        base.make_http_request.when.called_with('BOGUS', None).should.throw(TypeError)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_authentication_error(self, mock_request):
+        base = session.SessionBase()
+        base.make_http_request.when.called_with(
+            'GET', 'https://myservice/unauthorized'
+        ).should.throw(exceptions.InvalidAuthentication)
 
 
 class TestDeviceSession(unittest.TestCase):
@@ -305,7 +317,7 @@ class TestDeviceSession(unittest.TestCase):
                                              self.resetB_credentials])
 
 
-class TestServer(unittest.TestCase):
+class TestServerSession(unittest.TestCase):
     def setUp(self):
         mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
         self.server_credentials = keychain.Credentials('server', mock_keypair)
@@ -317,19 +329,64 @@ class TestServer(unittest.TestCase):
             key_bytes=TestSession.proj_key_bytes
         )
         self.project_credentials = keychain.Credentials('proj', mock_project_keypair)
+        mock_resetA_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.reset_key_A_bytes
+        )
+        self.resetA_credentials = keychain.Credentials('resetA-id', mock_resetA_keypair)
+
+        mock_resetB_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.reset_key_B_bytes
+        )
+        self.resetB_credentials = keychain.Credentials('resetB-id', mock_resetB_keypair)
+
+        mock_resetC_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.reset_key_C_bytes
+        )
+        self.resetC_credentials = keychain.Credentials('resetC-id', mock_resetC_keypair)
+
+        self.oneid_response = 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJpc3Mi' \
+                              'OiAib25lSUQiLCAianRpIjogIjAwMTIwMTYtMDEtMjBUMjE6N' \
+                              'TE6MDZabDJ5dHlXIn0=.eEhASqRrKWPhzKVmSmeFZY5tGeTgo' \
+                              'nZS45qwnz0_4VJb_qM_kNnQqLp96mPZLUtKHVIeJqA77SqlVx' \
+                              'WsOB1J4g'
+
+        self.fake_config = {
+            'GLOBAL': {
+                'base_url': 'https://myservice',
+            },
+            'test_service': {
+                'test_method': {
+                    'endpoint': '/my/endpoint',
+                    'method': 'GET',
+                    'arguments': {},
+                },
+            },
+        }
+
+    def test_init_from_config(self):
+        sess = session.ServerSession(config={})
+        sess.should_not.have.property('test_service')
+
+        sess = session.ServerSession(
+            identity_credentials=self.server_credentials,
+            config=self.fake_config,
+        )
+        sess.should.have.property('test_service')
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_service_request(self, mock_request):
+        sess = session.ServerSession(
+            identity_credentials=self.server_credentials,
+            config=self.fake_config,
+        )
+        sess.test_service.test_method().should.equal('tested')
 
     def test_prepare_message(self):
-        oneid_response = 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJpc3Mi' \
-                         'OiAib25lSUQiLCAianRpIjogIjAwMTIwMTYtMDEtMjBUMjE6N' \
-                         'TE6MDZabDJ5dHlXIn0=.eEhASqRrKWPhzKVmSmeFZY5tGeTgo' \
-                         'nZS45qwnz0_4VJb_qM_kNnQqLp96mPZLUtKHVIeJqA77SqlVx' \
-                         'WsOB1J4g'
-
         sess = session.ServerSession(identity_credentials=self.server_credentials,
                                      oneid_credentials=self.oneid_credentials,
                                      project_credentials=self.project_credentials)
 
-        authenticated_data = sess.prepare_message(oneid_response=oneid_response)
+        authenticated_data = sess.prepare_message(oneid_response=self.oneid_response)
 
         authenticated_msg = json.loads(authenticated_data)
 
@@ -339,12 +396,54 @@ class TestServer(unittest.TestCase):
 
         self.project_credentials.keypair.verify(authenticated_msg['payload'],
                                                 authenticated_msg['project_signature'])
+        self.oneid_credentials.keypair.verify(authenticated_msg['payload'],
+                                              authenticated_msg['oneid_signature'])
+
+    def test_prepare_message_no_project(self):
+        sess = session.ServerSession(identity_credentials=self.server_credentials,
+                                     oneid_credentials=self.oneid_credentials)
+
+        sess.prepare_message.when.called_with().should.throw(AttributeError)
+
+    def test_reset_keys(self):
+        sess = session.ServerSession(identity_credentials=self.server_credentials,
+                                     oneid_credentials=self.oneid_credentials,
+                                     project_credentials=self.project_credentials)
+
+        authenticated_data = sess.prepare_message(
+            oneid_response=self.oneid_response,
+            rekey_credentials=[
+                self.resetA_credentials,
+                self.resetB_credentials,
+                self.resetC_credentials,
+            ]
+        )
+        msg = json.loads(authenticated_data)
+
+        msg.should.have.key('payload')
+        msg.should.have.key('oneid_signature')
+        msg.should.have.key('reset_signatures').being.a(list)
+
+        msg['reset_signatures'].should.have.length_of(3)
+
+        payload = msg['payload']
+        self.oneid_credentials.keypair.verify(payload, msg['oneid_signature']).should.be.true
+
+        reset_sigs = msg['reset_signatures']
+
+        self.resetA_credentials.keypair.verify(payload, reset_sigs[0]).should.be.true
+        self.resetB_credentials.keypair.verify(payload, reset_sigs[1]).should.be.true
+        self.resetC_credentials.keypair.verify(payload, reset_sigs[2]).should.be.true
 
 
 class TestAdminSession(unittest.TestCase):
     def setUp(self):
         mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
         self.credentials = keychain.Credentials('me', mock_keypair)
+        mock_project_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.proj_key_bytes
+        )
+        self.project_credentials = keychain.Credentials('proj', mock_project_keypair)
         self.custom_config = dict()
         global_config = self.custom_config['GLOBAL'] = dict()
         global_config['base_url'] = 'https://myservice'
@@ -357,11 +456,23 @@ class TestAdminSession(unittest.TestCase):
         test_arguments['my_argument'] = {'location': 'jwt',
                                          'required': True}
 
+    def test_admin_session_defaults(self):
+        sess = session.AdminSession(self.credentials)
+        sess.should.have.property('revoke').being.a(service.BaseService)
+        sess.revoke.__class__.__name__.should.equal('revoke')
+
     def test_admin_session_config(self):
         sess = session.AdminSession(self.credentials,
                                     config=self.custom_config)
         self.assertIsInstance(sess.test_service, service.BaseService)
         self.assertEqual(sess.test_service.__class__.__name__, 'test_service')
+
+    def test_project_credentials(self):
+        sess = session.AdminSession(self.credentials)
+        sess.project_credentials.should.be.none
+
+        sess = session.AdminSession(self.credentials, project_credentials=self.project_credentials)
+        sess.project_credentials.should.be(self.project_credentials)
 
     def test_admin_session_missing_arg(self):
         sess = session.AdminSession(self.credentials,
