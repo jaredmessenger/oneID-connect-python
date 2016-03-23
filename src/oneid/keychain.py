@@ -8,6 +8,7 @@ import os
 
 import binascii
 import base64
+import logging
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -26,6 +27,8 @@ from . import utils
 
 KEYSIZE = 256
 KEYSIZE_BYTES = (KEYSIZE // 8)
+
+logger = logging.getLogger(__name__)
 
 
 class Credentials(object):
@@ -66,7 +69,7 @@ class ProjectCredentials(Credentials):
         """
         Encrypt plain text with the project encryption key.
 
-        :param plain_text: String to encrypt with project encryption key.
+        :param plain_text: String or bytes to encrypt with project encryption key.
         :returns: Dictionary with cipher text and encryption params.
         """
         iv = os.urandom(16)
@@ -76,7 +79,7 @@ class ProjectCredentials(Credentials):
             backend=default_backend()
         )
         encryptor = cipher_alg.encryptor()
-        encr_value = encryptor.update(plain_text) + encryptor.finalize()
+        encr_value = encryptor.update(utils.to_bytes(plain_text)) + encryptor.finalize()
         encr_value_b64 = base64.b64encode(encr_value + encryptor.tag)
         iv_b64 = base64.b64encode(iv)
         return {'cipher': 'aes', 'mode': 'gcm', 'ts': 128, 'iv': iv_b64, 'ct': encr_value_b64}
@@ -85,18 +88,34 @@ class ProjectCredentials(Credentials):
         """
         Decrypt cipher text that was encrypted with the project encryption key
 
-        :param cipher_text: Encrypted text
+        :param cipher_text: Encrypted text or dict (as returned by :py:encrypt:)
         :param iv: Base64 encoded initialization vector
-        :param mode: encryption mode i.e. gcm
-        :param tag_size: tag size, default 128
+        :param mode: [deprecated]
+        :param tag_size: [deprecated]
         :returns: plain text
+        :return_type: bytes
         """
-        if cipher.lower() == 'aes' and mode.lower() == 'gcm' and iv is None:
+        if isinstance(cipher_text, dict):
+            if 'cipher' not in cipher_text or cipher_text['cipher'].lower() != 'aes' or \
+               'mode' not in cipher_text or cipher_text['mode'].lower() != 'gcm' or \
+               'ts' not in cipher_text or cipher_text['ts'] != 128:
+                raise ValueError('Invalid encryption dict parameters')
+            b64_ct = cipher_text.get('ct')
+            iv = cipher_text.get('iv')
+        else:
+            if cipher.lower() != 'aes' or \
+               mode.lower() != 'gcm' or \
+               tag_size != 128:  # pragma: no cover
+                logger.warning('ignoring invalid, deprecated parameters')
+
+            b64_ct = cipher_text
+
+        if iv is None:
             raise ValueError('IV must be specified with using AES and GCM')
 
         iv = base64.b64decode(iv)
-        tag_ct = base64.b64decode(cipher_text)
-        ts = tag_size // 8
+        tag_ct = base64.b64decode(b64_ct)
+        ts = 16  # 128 // 8
         tag = tag_ct[-ts:]
         ct = tag_ct[:-ts]
         cipher_alg = Cipher(algorithms.AES(self._encryption_key),
