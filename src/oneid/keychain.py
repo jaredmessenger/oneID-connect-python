@@ -11,8 +11,7 @@ import base64
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, \
-    EllipticCurvePublicNumbers, SECP256R1
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, \
     load_pem_public_key, load_der_private_key, load_der_public_key
@@ -195,16 +194,6 @@ class Keypair(object):
         """
         secret_bytes = load_der_private_key(der_key, None, default_backend())
         return cls(secret_bytes=secret_bytes)
-
-    def _load_public_key_by_coord(self, x, y):
-        """
-        load validate key by the curve points
-        :param x: long x coordinate of ecc curve
-        :param y: long y coordinate of ecc curve
-        :return:
-        """
-        numbers = EllipticCurvePublicNumbers(x, y, SECP256R1())
-        self._public_key = numbers.public_key(default_backend())
 
     @classmethod
     def from_public_der(cls, public_key):
