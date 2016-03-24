@@ -49,7 +49,7 @@ class ServiceCreator(object):
         Service Model is either user, server or edge_device
         """
         class_attrs = self._create_methods(service_model, **kwargs)
-        cls = type(service_name, (BaseService,), class_attrs)
+        cls = type(str(service_name), (BaseService,), class_attrs)
 
         return cls(session, kwargs.get('project_credentials'))
 
@@ -100,7 +100,7 @@ class ServiceCreator(object):
                 kwargs.update(body_args=all_body_args)
             return self._make_api_request(endpoint, http_method, **kwargs)
 
-        _api_call.__name__ = name
+        _api_call.__name__ = str(name)
         return _api_call
 
 

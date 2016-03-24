@@ -20,7 +20,7 @@ def to_bytes(data):
 
 
 def to_string(data):
-    return data if isinstance(data, six.string_types) else data.decode('utf-8')
+    return data if isinstance(data, unicode if six.PY2 else str) else data.decode('utf-8')
 
 
 def base64url_encode(msg):
