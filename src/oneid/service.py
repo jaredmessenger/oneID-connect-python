@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """
 Provides useful functions for interacting with the oneID API, including creation of
@@ -117,7 +117,7 @@ class BaseService(object):
         self.session = session
 
         self.project_credentials = None
-        if hasattr(self.session, 'project_credentials'):
+        if hasattr(self.session, 'project_credentials') and self.session.project_credentials:
             self.project_credentials = self.session.project_credentials
 
         self.identity = self.session.identity_credentials.id
@@ -173,12 +173,10 @@ class BaseService(object):
                 signature=utils.to_string(self.credentials.keypair.sign(payload))
             )
             return self.session.service_request(http_method, url, body=jwt)
-        elif kwargs.get('body'):
-            # Replace the entire body with kwargs['body']
+        else:
+            # Replace the entire body with kwargs['body'] (if present)
             return self.session.service_request(http_method, url,
                                                 body=kwargs.get('body'))
-        else:
-            return self.session.service_request(http_method, url)
 
 
 def create_secret_key(output=None):
