@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey,
     EllipticCurvePrivateKey, EllipticCurvePublicNumbers, SECP256R1
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, \
-    load_der_private_key, load_der_public_key
+    load_pem_public_key, load_der_private_key, load_der_public_key
 
 from cryptography.hazmat.primitives.asymmetric.utils \
     import decode_dss_signature, encode_dss_signature
@@ -143,7 +143,7 @@ class Keypair(object):
     @classmethod
     def from_secret_pem(cls, key_bytes=None, path=None):
         """
-        Create a :class:`~oneid.keychain.Keypair` from a pem formatted data
+        Create a :class:`~oneid.keychain.Keypair` from a PEM-formatted private ECDSA key
 
         :return: :class:`~oneid.keychain.Keypair` instance
         """
@@ -155,6 +155,30 @@ class Keypair(object):
             with open(path, 'rb') as pem_file:
                 secret_bytes = load_pem_private_key(pem_file.read(), None, default_backend())
                 return cls(secret_bytes=secret_bytes)
+
+    @classmethod
+    def from_public_pem(cls, key_bytes=None, path=None):
+        """
+        Create a :class:`~oneid.keychain.Keypair` from a PEM-formatted public ECDSA key
+
+        Note that this keypair will not be capable of signing, only verifying.
+
+        :return: :class:`~oneid.keychain.Keypair` instance
+        """
+        ret = None
+        public_bytes = None
+
+        if key_bytes:
+            public_bytes = utils.to_bytes(key_bytes)
+        elif os.path.exists(path):
+            with open(path, 'rb') as pem_file:
+                public_bytes = pem_file.read()
+
+        if public_bytes:
+            ret = cls()
+            ret._public_key = load_pem_public_key(public_bytes, default_backend())
+
+        return ret
 
     @classmethod
     def from_secret_der(cls, der_key):
