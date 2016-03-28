@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """
 Provides useful functions for interacting with the oneID API, including creation of
@@ -49,7 +49,7 @@ class ServiceCreator(object):
         Service Model is either user, server or edge_device
         """
         class_attrs = self._create_methods(service_model, **kwargs)
-        cls = type(service_name, (BaseService,), class_attrs)
+        cls = type(str(service_name), (BaseService,), class_attrs)
 
         return cls(session, kwargs.get('project_credentials'))
 
@@ -100,7 +100,7 @@ class ServiceCreator(object):
                 kwargs.update(body_args=all_body_args)
             return self._make_api_request(endpoint, http_method, **kwargs)
 
-        _api_call.__name__ = name
+        _api_call.__name__ = str(name)
         return _api_call
 
 
@@ -117,7 +117,7 @@ class BaseService(object):
         self.session = session
 
         self.project_credentials = None
-        if hasattr(self.session, 'project_credentials'):
+        if hasattr(self.session, 'project_credentials') and self.session.project_credentials:
             self.project_credentials = self.session.project_credentials
 
         self.identity = self.session.identity_credentials.id
@@ -168,15 +168,15 @@ class BaseService(object):
                 additional_claims[body] = kwargs[body]
 
             payload = self.session.create_jwt_payload(**additional_claims)
-            jwt = '{payload}.{signature}'.format(payload=payload,
-                                                 signature=utils.to_string(self.credentials.keypair.sign(payload)))
+            jwt = '{payload}.{signature}'.format(
+                payload=payload,
+                signature=utils.to_string(self.credentials.keypair.sign(payload))
+            )
             return self.session.service_request(http_method, url, body=jwt)
-        elif kwargs.get('body'):
-            # Replace the entire body with kwargs['body']
+        else:
+            # Replace the entire body with kwargs['body'] (if present)
             return self.session.service_request(http_method, url,
                                                 body=kwargs.get('body'))
-        else:
-            return self.session.service_request(http_method, url)
 
 
 def create_secret_key(output=None):
@@ -231,14 +231,22 @@ def decrypt_attr_value(attr_ct, aes_key):
     :param aes_key: symmetric key to decrypt attribute value with
     :return: plaintext bytes
     """
-    if not isinstance(attr_ct, dict) or attr_ct.get('cipher', 'aes') != 'aes' or attr_ct.get('mode', 'gcm') != 'gcm':
+    if not isinstance(attr_ct, dict) or \
+            attr_ct.get('cipher', 'aes') != 'aes' or \
+            attr_ct.get('mode', 'gcm') != 'gcm':
+
         raise ValueError('invalid encrypted attribute')
+
     iv = base64.b64decode(attr_ct['iv'])
     tag_ct = base64.b64decode(attr_ct['ct'])
     ts = attr_ct.get('ts', 64) // 8
     tag = tag_ct[-ts:]
     ct = tag_ct[:-ts]
-    cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv, tag, min_tag_length=8), backend=default_backend())
+    cipher_alg = Cipher(
+        algorithms.AES(aes_key),
+        modes.GCM(iv, tag, min_tag_length=8),
+        backend=default_backend()
+    )
     decryptor = cipher_alg.decryptor()
     return decryptor.update(ct) + decryptor.finalize()
 
@@ -257,7 +265,7 @@ def make_jwt(claims, authorized_keypair):
     alg_serialized = json.dumps(alg)
     alg_b64 = utils.to_string(utils.base64url_encode(alg_serialized))
 
-    claims_serialized = json.dumps(claims)
+    claims_serialized = json.dumps(claims) if isinstance(claims, dict) else claims
     claims_b64 = utils.to_string(utils.base64url_encode(claims_serialized))
 
     payload = '{alg}.{claims}'.format(alg=alg_b64, claims=claims_b64)
@@ -296,9 +304,12 @@ def verify_jwt(jwt, verification_keypair=None):  # TODO: require verification_to
         logger.debug('no message: %s', message)
         return False
 
-    if verification_keypair and not verification_keypair.verify(*(jwt.rsplit('.', 1))):
-        logger.debug('invalid signature, header=%s, message=%s', header, message)
-        return False
+    if verification_keypair:
+        try:
+            verification_keypair.verify(*(jwt.rsplit('.', 1)))
+        except:
+            logger.debug('invalid signature, header=%s, message=%s', header, message)
+            return False
 
     return message
 

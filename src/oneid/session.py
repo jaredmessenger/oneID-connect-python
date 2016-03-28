@@ -3,11 +3,10 @@ from __future__ import unicode_literals
 import os
 import yaml
 import json
-import base64
 from requests import request
 from codecs import open
 
-from cryptography.exceptions import  InvalidSignature
+from cryptography.exceptions import InvalidSignature
 
 from . import service, utils, exceptions
 
@@ -76,7 +75,8 @@ class SessionBase(object):
         :param claims: JWT Claims Dict()
         :return: JWT payload (*no signature)
         """
-        alg_b64 = utils.to_string(utils.base64url_encode(utils.to_bytes(json.dumps(REQUIRED_JWT_HEADER_ELEMENTS))))
+        alg = json.dumps(REQUIRED_JWT_HEADER_ELEMENTS)
+        alg_b64 = utils.to_string(utils.base64url_encode(utils.to_bytes(alg)))
 
         # Required claims
         jti = utils.make_nonce()
@@ -91,8 +91,7 @@ class SessionBase(object):
 
         return payload
 
-    def make_http_request(self, http_method, url,
-                           headers=None, body=None):
+    def make_http_request(self, http_method, url, headers=None, body=None):
         """
         Generic HTTP request
 
@@ -160,23 +159,26 @@ class DeviceSession(SessionBase):
             self.project_credentials.keypair.verify(payload, project_sig)
 
         elif len(rekey_sigs) == 3 and len(rekey_credentials) == 3:
-            valid_sig_count = 0
-            # Iterate over all the possible signature/credential permutations
-            for sig in rekey_sigs:
-                for cred in rekey_credentials:
-                    try:
-                        cred.keypair.verify(payload, sig)
-                    except InvalidSignature:
-                        pass
-                    else:
-                        valid_sig_count += 1
-                        break
-            if valid_sig_count != 3:
+            if self._check_rekey_sigs(rekey_sigs, rekey_credentials, payload) != 3:
                 raise InvalidSignature('One or more signatures were invalid')
         else:
             raise InvalidSignature('Missing project signature')
 
         self.oneid_credentials.keypair.verify(payload, oneid_sig)
+
+    def _check_rekey_sigs(self, sigs, credentials, payload):
+        valid_sig_count = 0
+        # Iterate over all the possible signature/credential permutations
+        for sig in sigs:
+            for cred in credentials:
+                try:
+                    cred.keypair.verify(payload, sig)
+                except InvalidSignature:
+                    pass
+                else:
+                    valid_sig_count += 1
+                    break
+        return valid_sig_count
 
     def prepare_message(self, **kwargs):
         """
@@ -303,9 +305,9 @@ class AdminSession(SessionBase):
     def __init__(self, identity_credentials, application_credentials=None,
                  project_credentials=None, oneid_credentials=None, config=None):
         super(AdminSession, self).__init__(identity_credentials,
-                                            application_credentials,
-                                            project_credentials,
-                                            oneid_credentials, config)
+                                           application_credentials,
+                                           project_credentials,
+                                           oneid_credentials, config)
 
         if isinstance(config, dict):
             params = config
