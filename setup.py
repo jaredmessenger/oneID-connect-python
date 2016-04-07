@@ -47,5 +47,5 @@ setup(
         'oneid': ['data/*.yaml'],
     },
     install_requires=['cryptography>=1.1.2', 'pyyaml',
-                      'requests', 'python-dateutil>=2.4.2'],
+                      'requests', 'python-dateutil>=2.4.2', 'six'],
 )
